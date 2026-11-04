@@ -44,7 +44,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/companies", label: "Empresas", icon: Building2 },
       { href: "/leads", label: "Leads", icon: Rows3 },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
-      { href: "/assistant", label: "Assistente IA", icon: Sparkles, comingInPhase: 5 },
+      { href: "/assistant", label: "Assistente IA", icon: Sparkles },
       { href: "/proposals", label: "Propostas", icon: FileText, comingInPhase: 7 },
       { href: "/reports", label: "Relatórios", icon: BarChart3, comingInPhase: 7 },
     ],

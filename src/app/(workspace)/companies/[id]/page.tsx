@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConvertToLeadButton } from "@/components/companies/convert-to-lead-button";
+import { CompanyAnalysisSection } from "@/components/ai/company-analysis-section";
+import { listCompanyAnalyses } from "@/modules/ai/company-analyzer.service";
+import type { CompanyAnalysis } from "@/lib/ai/schemas";
 import { formatCnpj } from "@/lib/utils/normalize";
 import { formatRelativeDateTime } from "@/lib/utils/format";
 
@@ -31,6 +34,8 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
   if (!company) notFound();
 
   const activeLeadId = await getActiveLeadIdForCompany(supabase, activeOrganization.organizationId, id);
+  const analyses = await listCompanyAnalyses(supabase, activeOrganization.organizationId, id);
+  const latestAnalysis = (analyses[0]?.result ?? null) as CompanyAnalysis | null;
   const address = (company.address ?? {}) as CompanyAddress;
   const hasAddress = Boolean(address.street || address.city || address.state || address.zipCode);
 
@@ -115,11 +120,13 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
         </Card>
       </div>
 
+      <CompanyAnalysisSection companyId={company.id} initialAnalysis={latestAnalysis} />
+
       <Card>
-        <CardHeader title="Contatos, interações e histórico" subtitle="Chega na Fase 4 (CRM)" />
+        <CardHeader title="Contatos, interações e histórico" subtitle="Disponível no detalhe do lead" />
         <p className="text-sm text-[var(--ff-text-secondary)]">
-          Pessoas de contato, timeline de interações e tarefas desta empresa aparecerão aqui quando o CRM
-          (pipeline/leads) for implementado.
+          Pessoas de contato, timeline de interações e tarefas aparecem no detalhe do lead desta empresa
+          (quando ela for convertida em lead — ver botão acima).
         </p>
       </Card>
     </div>

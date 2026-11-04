@@ -101,7 +101,9 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_response_id: string | null
           organization_id: string
+          pending_tool_call: Json | null
           status: string
           title: string | null
           updated_at: string
@@ -110,7 +112,9 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_response_id?: string | null
           organization_id: string
+          pending_tool_call?: Json | null
           status?: string
           title?: string | null
           updated_at?: string
@@ -119,7 +123,9 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_response_id?: string | null
           organization_id?: string
+          pending_tool_call?: Json | null
           status?: string
           title?: string | null
           updated_at?: string
@@ -183,6 +189,7 @@ export type Database = {
       ai_usage_events: {
         Row: {
           created_at: string
+          duration_ms: number | null
           estimated_cost: number
           id: string
           input_tokens: number
@@ -190,11 +197,13 @@ export type Database = {
           operation: string
           organization_id: string
           output_tokens: number
+          prompt_version: string | null
           status: string
           user_id: string | null
         }
         Insert: {
           created_at?: string
+          duration_ms?: number | null
           estimated_cost?: number
           id?: string
           input_tokens?: number
@@ -202,11 +211,13 @@ export type Database = {
           operation: string
           organization_id: string
           output_tokens?: number
+          prompt_version?: string | null
           status: string
           user_id?: string | null
         }
         Update: {
           created_at?: string
+          duration_ms?: number | null
           estimated_cost?: number
           id?: string
           input_tokens?: number
@@ -214,6 +225,7 @@ export type Database = {
           operation?: string
           organization_id?: string
           output_tokens?: number
+          prompt_version?: string | null
           status?: string
           user_id?: string | null
         }
@@ -1553,9 +1565,40 @@ export type Database = {
     Functions: {
       can_admin_org: { Args: { target_org: string }; Returns: boolean }
       can_edit_org: { Args: { target_org: string }; Returns: boolean }
+      count_ai_usage_in_period: {
+        Args: {
+          p_organization_id: string
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: number
+      }
       create_organization_with_defaults: {
         Args: { org_name: string; org_slug: string }
         Returns: string
+      }
+      get_or_create_ai_quota: {
+        Args: {
+          p_default_limit: number
+          p_feature_key: string
+          p_organization_id: string
+        }
+        Returns: {
+          feature_key: string
+          id: string
+          limit_value: number | null
+          metadata: Json
+          organization_id: string
+          period_end: string | null
+          period_start: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "entitlements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       has_org_role: {
         Args: {
@@ -1565,6 +1608,39 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { target_org: string }; Returns: boolean }
+      log_ai_usage: {
+        Args: {
+          p_duration_ms: number
+          p_estimated_cost: number
+          p_input_tokens: number
+          p_model: string
+          p_operation: string
+          p_organization_id: string
+          p_output_tokens: number
+          p_prompt_version: string
+          p_status: string
+        }
+        Returns: {
+          created_at: string
+          duration_ms: number | null
+          estimated_cost: number
+          id: string
+          input_tokens: number
+          model: string
+          operation: string
+          organization_id: string
+          output_tokens: number
+          prompt_version: string | null
+          status: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ai_usage_events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       move_lead_stage: {
         Args: {
           p_lead_id: string

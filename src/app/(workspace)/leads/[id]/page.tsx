@@ -20,6 +20,10 @@ import { ContactItem } from "@/components/leads/contact-item";
 import { InteractionForm } from "@/components/leads/interaction-form";
 import { TaskForm } from "@/components/leads/task-form";
 import { TaskItem } from "@/components/leads/task-item";
+import { LeadScoreSection } from "@/components/ai/lead-score-section";
+import { OutreachSection } from "@/components/ai/outreach-section";
+import { listLeadAnalyses } from "@/modules/ai/lead-scorer.service";
+import type { LeadScoreResult } from "@/lib/ai/schemas";
 import { INTERACTION_TYPE_LABELS } from "@/lib/validation/interactions";
 import { formatRelativeDateTime } from "@/lib/utils/format";
 
@@ -36,6 +40,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   if (!lead || !lead.company) notFound();
+
+  const leadAnalyses = await listLeadAnalyses(supabase, activeOrganization.organizationId, id);
+  const latestScore = (leadAnalyses.find((a) => a.analysis_type === "lead_score")?.result ??
+    null) as LeadScoreResult | null;
 
   const stageOptions = stages.map((s) => ({
     id: s.id,
@@ -150,6 +158,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
+        <LeadScoreSection leadId={lead.id} initialScore={latestScore} />
+        <OutreachSection leadId={lead.id} />
+      </div>
 
       {lead.stageHistory.length > 0 ? (
         <Card>
