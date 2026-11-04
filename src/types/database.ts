@@ -1102,6 +1102,9 @@ export type Database = {
       }
       organizations: {
         Row: {
+          billing_document: string | null
+          billing_email: string | null
+          billing_name: string | null
           created_at: string
           id: string
           name: string
@@ -1111,6 +1114,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_document?: string | null
+          billing_email?: string | null
+          billing_name?: string | null
           created_at?: string
           id?: string
           name: string
@@ -1120,6 +1126,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_document?: string | null
+          billing_email?: string | null
+          billing_name?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -1565,6 +1574,19 @@ export type Database = {
     Functions: {
       can_admin_org: { Args: { target_org: string }; Returns: boolean }
       can_edit_org: { Args: { target_org: string }; Returns: boolean }
+      claim_asaas_webhook_event: {
+        Args: {
+          p_event_type: string
+          p_payload: Json
+          p_provider_event_id: string
+        }
+        Returns: {
+          attempts: number
+          claimed: boolean
+          event_id: string
+          processing_status: string
+        }[]
+      }
       count_ai_usage_in_period: {
         Args: {
           p_organization_id: string

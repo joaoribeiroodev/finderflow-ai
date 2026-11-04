@@ -52,7 +52,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Conta",
     items: [
-      { href: "/billing", label: "Assinatura", icon: CreditCard, comingInPhase: 6 },
+      { href: "/billing", label: "Assinatura", icon: CreditCard },
       { href: "/settings", label: "Configurações", icon: Settings },
     ],
   },

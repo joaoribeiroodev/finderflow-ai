@@ -84,6 +84,11 @@ Se uma chave estiver ausente, o módulo correspondente permanece desabilitado
 em `src/lib/env/env.server.ts`) em vez de quebrar o build — a interface do
 provider existe, mas a chamada real só ocorre quando configurada.
 
+`POST /api/v1/jobs/billing-sync` (protegido por `Authorization: Bearer
+$CRON_SECRET`) reconcilia assinaturas periodicamente (ver docs/DECISIONS.md,
+Fase 6) — **não há agendador configurado neste ambiente**; em produção,
+chame-o periodicamente via Vercel Cron, GitHub Actions ou similar.
+
 ## Testes de isolamento cross-tenant (RLS)
 
 `tests/integration/rls-cross-tenant.test.ts` cria dois usuários em duas
@@ -123,7 +128,8 @@ tests/integration/  testes de integração (RLS)
 - ✅ Fase 3 — empresas (CRUD, busca/filtro/paginação), cadastro manual, importação CSV (upload → mapeamento → preview/validação → confirmação, com `import_jobs` auditável), deduplicação conservadora (CNPJ bloqueia, domínio avisa, nome nunca sozinho), conversão empresa→lead, contrato `BusinessDataProvider` pronto mas sem adaptador real (decisão de provedor ainda pendente — `/prospecting` expõe isso honestamente). Dois bugs de produção encontrados via QA visual real e corrigidos (um `redirect()` do Next.js dentro de `try/catch` engolindo o próprio redirecionamento; validação Zod rejeitando `null` de um checkbox ausente do DOM) — detalhes em `docs/DECISIONS.md`.
 - ✅ Fase 4 — CRM: etapas de funil configuráveis (criar/renomear/recolorir/excluir/reordenar), lista de leads com busca/filtro/paginação, Kanban (seletor de etapa acessível por teclado em vez de drag-and-drop), detalhe do lead (prioridade, valor estimado, probabilidade, próximo contato), contatos, timeline de interações, tarefas, histórico de mudança de etapa gravado atomicamente via RPC no banco. Um achado de segurança (`anon` podia executar RPCs sensíveis via PostgREST) e um bug de produção (interação não registrava, sem erro visível — mesma classe do bug de checkbox da Fase 3) encontrados e corrigidos antes do commit — detalhes em `docs/DECISIONS.md`.
 - ✅ Fase 5 — IA (OpenAI): `AIProvider`/`OpenAIProvider` via Responses API com Structured Outputs (revalidados com Zod), quota mensal por organização verificada antes de cada chamada, registro de uso (modelo/prompt/tokens/custo/duração/status) em `ai_usage_events`. Company Analyzer, Lead Scorer (pesos fixos 25/25/15/15/10/10, nunca chamado de "probabilidade de compra") e Outreach Generator, todos com estado honesto de "IA não configurada" quando `OPENAI_API_KEY` está ausente. Copilot conversacional com allowlist de ferramentas (sem SQL/credenciais para o modelo), confirmação explícita do usuário para ações que alteram dados (persistida no servidor, nunca confiada do cliente), e sanitização de dado de terceiros contra prompt injection. QA real em build de produção confirmou os zero-states honestos (sem chave configurada neste ambiente) — detalhes e decisões (quota placeholder, preços estimados, encadeamento via `previous_response_id`) em `docs/DECISIONS.md`.
-- ⏳ Fases 6+ — billing (Asaas), propostas, relatórios: ainda não implementadas (stubs em `src/app/(workspace)/{proposals,reports,billing}`).
+- ✅ Fase 6 — Billing (Asaas): `AsaasProvider` real sobre a API v3 (customer, checkout recorrente, consulta de assinatura) + `NotConfiguredAsaasProvider`; checkout hospedado com preço sempre calculado no servidor a partir de `plans`; webhook idempotente (`/api/v1/webhooks/asaas`, reivindicação atômica por evento — retries nunca duplicam efeito); página de retorno puramente informativa (nunca confirma pagamento); sincronização de status combinando assinatura+pagamento; tolerância de inadimplência configurável antes de restringir IA sem apagar dados; job de reconciliação periódica (`/api/v1/jobs/billing-sync`, requer scheduler externo — não configurado neste ambiente). Fecha o placeholder de quota de IA da Fase 5: o limite mensal passa a vir do plano contratado. Um bug crítico (middleware redirecionando as próprias rotas de webhook/job para `/login`) foi encontrado pelo QA real de build de produção e corrigido antes do commit — detalhes em `docs/DECISIONS.md`.
+- ⏳ Fases 7+ — propostas, relatórios: ainda não implementadas (stubs em `src/app/(workspace)/{proposals,reports}`).
 
 ## Segurança — regras que todo PR deve respeitar
 

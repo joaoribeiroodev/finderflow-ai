@@ -51,6 +51,9 @@ test.describe("Páginas de autenticação", () => {
     // Fase 5: idem para o Copilot — rota dinâmica de conversa.
     "/assistant",
     "/assistant/00000000-0000-4000-8000-000000000000",
+    // Fase 6: billing.
+    "/billing",
+    "/billing/return",
   ]) {
     test(`${path} também redireciona para /login quando não autenticado`, async ({ page }) => {
       await page.goto(path);

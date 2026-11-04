@@ -4,9 +4,31 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getServerEnv } from "@/lib/env/env.server";
 import type { Database } from "@/types/database";
 
-const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/recovery", "/auth", "/api/billing/webhooks"];
+const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/recovery", "/auth"];
 
+/**
+ * Toda rota de API (`/api/**`) faz sua própria autenticação — sessão de
+ * usuário quando aplicável (`createClient()` dentro do Route Handler), ou
+ * um segredo próprio quando não há usuário (webhook do Asaas validado
+ * pelo header `asaas-access-token`; job de reconciliação validado por
+ * `CRON_SECRET` — Fase 6). Redirecionar uma chamada de API não
+ * autenticada para `/login` (uma página HTML) nunca é correto: o Asaas
+ * receberia um 307 para uma página de login em vez de qualquer resposta
+ * JSON, e passaria a reentregar o evento indefinidamente sem jamais
+ * alcançar o handler.
+ *
+ * **Achado durante a implementação da Fase 6** (nunca chegou a produção,
+ * pego pelo QA real de build de produção): esta função já existia com um
+ * prefixo público (`/api/billing/webhooks`) antecipado desde a Fase 0/1,
+ * mas o caminho real implementado (`/api/v1/webhooks/asaas`,
+ * `/api/v1/jobs/billing-sync`) não batia com ele — o webhook teria sido
+ * silenciosamente redirecionado para `/login` em vez de processado. Em
+ * vez de listar cada rota de API uma a uma (frágil a cada nova rota),
+ * excluímos `/api/` inteiro do redirect — cada Route Handler já é
+ * responsável pela própria autorização.
+ */
 function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith("/api/")) return true;
   return PUBLIC_PATH_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
