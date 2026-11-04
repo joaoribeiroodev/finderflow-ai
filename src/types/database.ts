@@ -1565,6 +1565,41 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { target_org: string }; Returns: boolean }
+      move_lead_stage: {
+        Args: {
+          p_lead_id: string
+          p_loss_reason?: string
+          p_to_stage_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          assigned_to: string | null
+          company_id: string
+          created_at: string
+          estimated_value: number | null
+          id: string
+          loss_reason: string | null
+          next_contact_at: string | null
+          organization_id: string
+          priority: Database["public"]["Enums"]["lead_priority"]
+          probability: number | null
+          score: number | null
+          service_interest: string | null
+          stage_id: string
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reorder_pipeline_stages: {
+        Args: { p_ordered_ids: string[]; p_organization_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       lead_priority: "low" | "medium" | "high"

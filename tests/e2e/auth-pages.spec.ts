@@ -43,6 +43,11 @@ test.describe("Páginas de autenticação", () => {
     "/leads",
     "/pipeline",
     "/settings",
+    // Fase 4: rota dinâmica de leads precisa de um UUID válido para o
+    // Next.js tentar renderizar a página antes de checar a sessão — um
+    // UUID qualquer (sintaticamente válido, mas inexistente) é suficiente
+    // para exercitar o redirect de autenticação.
+    "/leads/00000000-0000-4000-8000-000000000000",
   ]) {
     test(`${path} também redireciona para /login quando não autenticado`, async ({ page }) => {
       await page.goto(path);
