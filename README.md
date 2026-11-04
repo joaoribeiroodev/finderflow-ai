@@ -116,6 +116,12 @@ docs/             especificação do produto (requisitos, arquitetura, etc.)
 tests/integration/  testes de integração (RLS)
 ```
 
+## Status das fases
+
+- ✅ Fase 0/1 — fundação, auth, multi-tenant, RLS verificado.
+- ✅ Fase 2 — shell visual (sidebar/topbar/design tokens), dashboard com dados reais (sem fixtures), página de Configurações, páginas das próximas fases como "em construção". Dois bugs críticos de produção encontrados via QA visual real e corrigidos (Cache Components quebrando `/dashboard` e `/settings`; FKs redundantes quebrando embeds do PostgREST) — detalhes em `docs/DECISIONS.md`.
+- ⏳ Fases 3+ — prospecção, empresas/leads/pipeline, assistente IA, propostas, relatórios, billing: ainda não implementadas (stubs em `src/app/(workspace)/{prospecting,companies,leads,pipeline,assistant,proposals,reports,billing}`).
+
 ## Segurança — regras que todo PR deve respeitar
 
 - `organization_id` nunca é confiado a partir do browser — sempre resolvido/

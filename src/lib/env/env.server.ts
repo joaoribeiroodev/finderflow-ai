@@ -5,20 +5,32 @@ import { z } from "zod";
  * Nunca importar este módulo em código que roda no navegador:
  * ele lê segredos que não podem ser expostos via NEXT_PUBLIC_*.
  */
+
+/**
+ * String opcional que trata `""` (chave presente no `.env.local` mas vazia —
+ * convenção comum em `KEY=` para "ainda não configurado") como ausente.
+ * Sem isso, `.optional()` sozinho só cobre `undefined`, e um `.env.local`
+ * real com placeholders vazios para integrações de fases futuras (OpenAI,
+ * Asaas, provedor de empresas) quebra a validação à toa.
+ */
+function optionalString(shape: z.ZodString) {
+  return z.preprocess((value) => (value === "" ? undefined : value), shape.optional());
+}
+
 const serverEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
-  OPENAI_DEFAULT_MODEL: z.string().min(1).optional(),
-  ASAAS_API_KEY: z.string().min(1).optional(),
-  ASAAS_API_BASE_URL: z.string().url().optional(),
-  ASAAS_WEBHOOK_TOKEN: z.string().min(1).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: optionalString(z.string().min(1)),
+  OPENAI_API_KEY: optionalString(z.string().min(1)),
+  OPENAI_DEFAULT_MODEL: optionalString(z.string().min(1)),
+  ASAAS_API_KEY: optionalString(z.string().min(1)),
+  ASAAS_API_BASE_URL: optionalString(z.string().url()),
+  ASAAS_WEBHOOK_TOKEN: optionalString(z.string().min(1)),
   ASAAS_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),
-  BUSINESS_PROVIDER: z.string().min(1).optional(),
-  BUSINESS_PROVIDER_API_KEY: z.string().min(1).optional(),
-  CRON_SECRET: z.string().min(1).optional(),
+  BUSINESS_PROVIDER: optionalString(z.string().min(1)),
+  BUSINESS_PROVIDER_API_KEY: optionalString(z.string().min(1)),
+  CRON_SECRET: optionalString(z.string().min(1)),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

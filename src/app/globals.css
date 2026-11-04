@@ -24,6 +24,21 @@
   --ff-text-secondary: #b7aec9;
   --ff-text-muted: #81778f;
 
+  /* Raio: cards 14–18px (docs/06-design-system.md §6.4) */
+  --ff-radius-sm: 10px;
+  --ff-radius-md: 14px;
+  --ff-radius-lg: 18px;
+  --ff-radius-pill: 999px;
+
+  /* Sombras: suaves, luz ambiente localizada — nunca brilho em todo card */
+  --ff-shadow-card: 0 8px 25px rgba(0, 0, 0, 0.12);
+  --ff-shadow-elevated: 0 18px 55px rgba(0, 0, 0, 0.3);
+  --ff-shadow-glow-purple: 0 0 26px rgba(139, 92, 246, 0.35);
+
+  /* Microinterações: 150–220ms (docs/06-design-system.md §6.7) */
+  --ff-transition-fast: 150ms;
+  --ff-transition-base: 200ms;
+
   --background: var(--ff-bg-canvas);
   --foreground: var(--ff-text-primary);
 }
@@ -36,7 +51,26 @@
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(ellipse at 78% -18%, rgba(124, 58, 237, 0.16), transparent 38%),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: normal;
+}
+
+/* KPIs e valores monetários: tabular-nums evita "dança" de dígitos */
+.ff-tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

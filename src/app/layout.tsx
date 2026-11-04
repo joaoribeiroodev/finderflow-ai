@@ -17,18 +17,6 @@ export const metadata: Metadata = {
   description: "Plataforma SaaS de prospecção B2B, CRM e inteligência comercial com IA.",
 };
 
-/**
- * Next.js 16 (Cache Components) valida que toda navegação produza UI
- * instantânea, o que exigiria mover toda leitura de `cookies()`/sessão
- * para dentro de `<Suspense>` com `use cache: private` em cada rota.
- * Para a Fase 1 (autenticação é praticamente toda a superfície do app),
- * desativamos essa validação no layout raiz — caminho de migração
- * oficial recomendado para apps com sessão pervasiva — e revisitamos
- * rota a rota nas próximas fases, conforme a UI de workspace cresce.
- * https://nextjs.org/docs/app/guides/authentication-with-cache-components
- */
-export const instant = false;
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
