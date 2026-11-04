@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de design do FinderFlow AI (docs/06-design-system.md).
+ * Dark mode é o padrão do produto (não alterna por prefers-color-scheme) —
+ * a composição final de theming/light mode será revisada na Fase 2
+ * (shell visual). Por ora, fixamos o tema escuro definido na spec.
+ */
+:root {
+  --ff-bg-canvas: #0b0912;
+  --ff-bg-sidebar: #100d1c;
+  --ff-bg-surface: #171326;
+  --ff-bg-elevated: #211a35;
+  --ff-border-subtle: #302545;
+  --ff-purple-500: #8b5cf6;
+  --ff-purple-600: #7c3aed;
+  --ff-violet-glow: #a78bfa;
+  --ff-magenta: #d946ef;
+  --ff-cyan: #22d3ee;
+  --ff-success: #34d399;
+  --ff-warning: #fbbf24;
+  --ff-danger: #fb7185;
+  --ff-text-primary: #f5f3ff;
+  --ff-text-secondary: #b7aec9;
+  --ff-text-muted: #81778f;
+
+  --background: var(--ff-bg-canvas);
+  --foreground: var(--ff-text-primary);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
