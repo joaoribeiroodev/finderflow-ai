@@ -35,7 +35,15 @@ test.describe("Páginas de autenticação", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  for (const path of ["/prospecting", "/companies", "/leads", "/pipeline", "/settings"]) {
+  for (const path of [
+    "/prospecting",
+    "/companies",
+    "/companies/new",
+    "/companies/import",
+    "/leads",
+    "/pipeline",
+    "/settings",
+  ]) {
     test(`${path} também redireciona para /login quando não autenticado`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(/\/login/);

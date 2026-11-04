@@ -120,7 +120,8 @@ tests/integration/  testes de integração (RLS)
 
 - ✅ Fase 0/1 — fundação, auth, multi-tenant, RLS verificado.
 - ✅ Fase 2 — shell visual (sidebar/topbar/design tokens), dashboard com dados reais (sem fixtures), página de Configurações, páginas das próximas fases como "em construção". Dois bugs críticos de produção encontrados via QA visual real e corrigidos (Cache Components quebrando `/dashboard` e `/settings`; FKs redundantes quebrando embeds do PostgREST) — detalhes em `docs/DECISIONS.md`.
-- ⏳ Fases 3+ — prospecção, empresas/leads/pipeline, assistente IA, propostas, relatórios, billing: ainda não implementadas (stubs em `src/app/(workspace)/{prospecting,companies,leads,pipeline,assistant,proposals,reports,billing}`).
+- ✅ Fase 3 — empresas (CRUD, busca/filtro/paginação), cadastro manual, importação CSV (upload → mapeamento → preview/validação → confirmação, com `import_jobs` auditável), deduplicação conservadora (CNPJ bloqueia, domínio avisa, nome nunca sozinho), conversão empresa→lead, contrato `BusinessDataProvider` pronto mas sem adaptador real (decisão de provedor ainda pendente — `/prospecting` expõe isso honestamente). Dois bugs de produção encontrados via QA visual real e corrigidos (um `redirect()` do Next.js dentro de `try/catch` engolindo o próprio redirecionamento; validação Zod rejeitando `null` de um checkbox ausente do DOM) — detalhes em `docs/DECISIONS.md`.
+- ⏳ Fases 4+ — CRM (leads/pipeline/contatos), assistente IA, propostas, relatórios, billing: ainda não implementadas (stubs em `src/app/(workspace)/{leads,pipeline,assistant,proposals,reports,billing}`).
 
 ## Segurança — regras que todo PR deve respeitar
 

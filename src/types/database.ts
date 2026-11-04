@@ -165,13 +165,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ai_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversations"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "ai_messages_conversation_same_org_fk"
             columns: ["organization_id", "conversation_id"]
             isOneToOne: false
@@ -369,13 +362,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "billing_payments_subscription_id_fkey"
-            columns: ["subscription_id"]
-            isOneToOne: false
-            referencedRelation: "organization_subscriptions"
-            referencedColumns: ["id"]
-          },
         ]
       }
       companies: {
@@ -485,13 +471,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "company_source_refs_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "company_source_refs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -542,13 +521,6 @@ export type Database = {
           preferred_channel?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "contacts_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "contacts_company_same_org_fk"
             columns: ["organization_id", "company_id"]
@@ -603,13 +575,6 @@ export type Database = {
           title?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "deals_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "deals_lead_same_org_fk"
             columns: ["organization_id", "lead_id"]
@@ -674,6 +639,56 @@ export type Database = {
           },
         ]
       }
+      import_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_report: Json
+          file_name: string
+          file_path: string | null
+          id: string
+          organization_id: string
+          status: string
+          summary: Json
+          total_rows: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_report?: Json
+          file_name: string
+          file_path?: string | null
+          id?: string
+          organization_id: string
+          status?: string
+          summary?: Json
+          total_rows?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_report?: Json
+          file_name?: string
+          file_path?: string | null
+          id?: string
+          organization_id?: string
+          status?: string
+          summary?: Json
+          total_rows?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           actor_id: string | null
@@ -709,13 +724,6 @@ export type Database = {
           type?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "interactions_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "interactions_lead_same_org_fk"
             columns: ["organization_id", "lead_id"]
@@ -821,31 +829,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_stage_history_from_stage_id_fkey"
-            columns: ["from_stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_stage_history_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "lead_stage_history_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_stage_history_to_stage_id_fkey"
-            columns: ["to_stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
           },
           {
@@ -928,13 +915,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "leads_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "leads_company_same_org_fk"
             columns: ["organization_id", "company_id"]
             isOneToOne: false
@@ -946,13 +926,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "leads_stage_id_fkey"
-            columns: ["stage_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
           },
           {
@@ -1289,13 +1262,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "proposal_items_proposal_id_fkey"
-            columns: ["proposal_id"]
-            isOneToOne: false
-            referencedRelation: "proposals"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "proposal_items_proposal_same_org_fk"
             columns: ["organization_id", "proposal_id"]
             isOneToOne: false
@@ -1349,13 +1315,6 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "proposals_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "proposals_lead_same_org_fk"
             columns: ["organization_id", "lead_id"]
@@ -1422,13 +1381,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "search_results_search_id_fkey"
-            columns: ["search_id"]
-            isOneToOne: false
-            referencedRelation: "searches"
             referencedColumns: ["id"]
           },
           {
@@ -1578,13 +1530,6 @@ export type Database = {
           title?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "tasks_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "tasks_lead_same_org_fk"
             columns: ["organization_id", "lead_id"]
@@ -1786,5 +1731,5 @@ export const Constants = {
  * check constraint em organization_members), por isso é mantido manualmente —
  * atualizar se a constraint mudar.
  */
-export type OrgRole = Database["public"]["Enums"]["org_role"];
-export type MemberStatus = "invited" | "active" | "suspended";
+export type OrgRole = Database["public"]["Enums"]["org_role"]
+export type MemberStatus = "invited" | "active" | "suspended"

@@ -40,8 +40,8 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Workspace",
     items: [
       { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
-      { href: "/prospecting", label: "Prospecção", icon: Search, comingInPhase: 3 },
-      { href: "/companies", label: "Empresas", icon: Building2, comingInPhase: 3 },
+      { href: "/prospecting", label: "Prospecção", icon: Search },
+      { href: "/companies", label: "Empresas", icon: Building2 },
       { href: "/leads", label: "Leads", icon: Rows3, comingInPhase: 4 },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare, comingInPhase: 4 },
       { href: "/assistant", label: "Assistente IA", icon: Sparkles, comingInPhase: 5 },
