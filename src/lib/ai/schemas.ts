@@ -95,3 +95,45 @@ export const outreachMessageSchema = z.object({
   follow_up_suggestion: z.string().min(1),
 });
 export type OutreachMessage = z.infer<typeof outreachMessageSchema>;
+
+/**
+ * Insights de vendas (Sales Analyst, FF-085 "Insights IA com evidência e
+ * período"). O modelo só INTERPRETA métricas já calculadas no servidor
+ * (nunca recebe permissão para calcular ou inventar números) — por isso
+ * cada insight exige `evidence` citando literalmente um valor que já
+ * estava no input, e o período analisado é sempre ecoado de volta
+ * (`period`) para a UI nunca mostrar uma interpretação sem deixar claro a
+ * qual janela de tempo ela se refere.
+ */
+export const salesInsightSchema = z.object({
+  claim: z.string().min(1),
+  evidence: z.string().min(1),
+  metric_key: z.string().min(1),
+});
+
+export const salesInsightsSchema = z.object({
+  period_label: z.string().min(1),
+  headline: z.string().min(1),
+  insights: z.array(salesInsightSchema).min(1).max(8),
+  risks: z.array(z.string().min(1)).max(5),
+  recommended_actions: z.array(z.string().min(1)).min(1).max(5),
+});
+export type SalesInsights = z.infer<typeof salesInsightsSchema>;
+
+/** Rascunho de proposta (Proposal Assistant). Nunca inserido direto no banco — o usuário revisa antes de salvar. */
+export const proposalDraftItemSchema = z.object({
+  service_id: z.string().uuid().nullable(),
+  service_name: z.string().min(1),
+  description: z.string().min(1),
+  suggested_quantity: z.number().positive(),
+  suggested_unit_price: z.number().min(0),
+  rationale: z.string().min(1),
+});
+
+export const proposalDraftSchema = z.object({
+  scope_summary: z.string().min(1),
+  items: z.array(proposalDraftItemSchema).min(1).max(10),
+  suggested_valid_days: z.number().int().min(1).max(90),
+  notes: z.string().min(1),
+});
+export type ProposalDraft = z.infer<typeof proposalDraftSchema>;

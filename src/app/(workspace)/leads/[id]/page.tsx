@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, History, Users } from "lucide-react";
+import { ArrowLeft, FileText, History, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { getLeadDetail } from "@/modules/leads/leads.service";
 import { listPipelineStages } from "@/modules/pipeline/pipeline.service";
+import { listProposalsForLead } from "@/modules/proposals/proposals.service";
+import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
+import { effectiveProposalStatus, type ProposalStatus } from "@/lib/validation/proposals";
+import { formatBRL } from "@/lib/utils/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +26,7 @@ import { TaskForm } from "@/components/leads/task-form";
 import { TaskItem } from "@/components/leads/task-item";
 import { LeadScoreSection } from "@/components/ai/lead-score-section";
 import { OutreachSection } from "@/components/ai/outreach-section";
+import { ProposalAssistantSection } from "@/components/ai/proposal-assistant-section";
 import { listLeadAnalyses } from "@/modules/ai/lead-scorer.service";
 import type { LeadScoreResult } from "@/lib/ai/schemas";
 import { INTERACTION_TYPE_LABELS } from "@/lib/validation/interactions";
@@ -40,6 +45,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   if (!lead || !lead.company) notFound();
+
+  const proposals = await listProposalsForLead(supabase, activeOrganization.organizationId, id);
 
   const leadAnalyses = await listLeadAnalyses(supabase, activeOrganization.organizationId, id);
   const latestScore = (leadAnalyses.find((a) => a.analysis_type === "lead_score")?.result ??
@@ -162,7 +169,47 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
         <LeadScoreSection leadId={lead.id} initialScore={latestScore} />
         <OutreachSection leadId={lead.id} />
+        <ProposalAssistantSection leadId={lead.id} />
       </div>
+
+      <Card>
+        <CardHeader
+          title="Propostas"
+          action={
+            <Link
+              href={`/proposals?leadId=${lead.id}`}
+              className="inline-flex h-9 items-center rounded-xl border border-[var(--ff-border-subtle)] px-3 text-sm text-[var(--ff-text-secondary)] hover:text-[var(--ff-text-primary)]"
+            >
+              Nova proposta
+            </Link>
+          }
+        />
+        {proposals.length === 0 ? (
+          <EmptyState icon={FileText} title="Nenhuma proposta ainda" />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {proposals.map((proposal) => {
+              const effective = effectiveProposalStatus(proposal.status as ProposalStatus, proposal.valid_until);
+              return (
+                <li key={proposal.id}>
+                  <Link
+                    href={`/proposals/${proposal.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[var(--ff-border-subtle)] p-3 hover:border-[var(--ff-purple-500)]"
+                  >
+                    <span className="text-sm text-[var(--ff-text-primary)]">{proposal.proposal_number}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="ff-tabular-nums text-sm text-[var(--ff-text-secondary)]">
+                        {formatBRL(Number(proposal.total_amount))}
+                      </span>
+                      <ProposalStatusBadge status={effective} />
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
 
       {lead.stageHistory.length > 0 ? (
         <Card>

@@ -3,12 +3,12 @@ import { Building2, CheckSquare, FileText, Rows3, Sparkles, History } from "luci
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
-import { getDashboardData } from "@/modules/dashboard/dashboard.service";
+import { getDashboardData, getSegmentsAndOrigins, getTrendData } from "@/modules/dashboard/dashboard.service";
+import { SalesInsightsSection } from "@/components/ai/sales-insights-section";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { ChartCard, FunnelRow } from "@/components/ui/chart-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { formatBRL, formatRelativeDateTime } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Visão geral — FinderFlow AI" };
@@ -16,9 +16,17 @@ export const metadata: Metadata = { title: "Visão geral — FinderFlow AI" };
 export default async function DashboardPage() {
   const activeOrganization = await requireActiveOrganization();
   const supabase = await createClient();
-  const data = await getDashboardData(supabase, activeOrganization.organizationId);
+  const [data, trend, breakdown] = await Promise.all([
+    getDashboardData(supabase, activeOrganization.organizationId),
+    getTrendData(supabase, activeOrganization.organizationId),
+    getSegmentsAndOrigins(supabase, activeOrganization.organizationId),
+  ]);
 
   const maxStageCount = Math.max(1, ...data.pipeline.map((s) => s.count));
+  const maxLeadsTrend = Math.max(1, ...trend.leadsCreated.map((b) => b.value));
+  const maxRevenueTrend = Math.max(1, ...trend.wonRevenue.map((b) => b.value));
+  const maxSegmentCount = Math.max(1, ...breakdown.segments.map((s) => s.count));
+  const maxOriginCount = Math.max(1, ...breakdown.origins.map((s) => s.count));
 
   return (
     <div className="flex flex-col gap-5">
@@ -114,22 +122,63 @@ export default async function DashboardPage() {
         )}
       </ChartCard>
 
-      <ChartCard
-        title={
-          <span className="flex items-center gap-2">
-            <Sparkles className="size-4 text-[var(--ff-violet-glow)]" aria-hidden /> Insight da IA
-          </span>
-        }
-        subtitle="Análises automáticas do seu funil e das empresas prospectadas"
-        action={<Badge variant="outline">Fase 5</Badge>}
-        className="border-[#55347a] bg-[linear-gradient(100deg,#281743,#1b1430_60%,#201332)]"
-      >
-        <p className="text-sm text-[var(--ff-text-secondary)]">
-          O FinderFlow Copilot vai gerar insights reais a partir dos seus dados (empresas, leads e
-          propostas) quando a integração com OpenAI for implementada. Nenhuma análise é inventada
-          antes disso.
-        </p>
-      </ChartCard>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
+        <ChartCard title="Tendência de leads" subtitle="Leads criados por mês (últimos 6 meses)">
+          {trend.leadsCreated.every((b) => b.value === 0) ? (
+            <EmptyState icon={Rows3} title="Sem leads no período" />
+          ) : (
+            trend.leadsCreated.map((bucket) => (
+              <FunnelRow key={bucket.key} label={bucket.label} count={bucket.value} max={maxLeadsTrend} />
+            ))
+          )}
+        </ChartCard>
+
+        <ChartCard title="Tendência de receita" subtitle="Negócios ganhos por mês (últimos 6 meses)">
+          {trend.wonRevenue.every((b) => b.value === 0) ? (
+            <EmptyState icon={FileText} title="Nenhum negócio ganho no período" />
+          ) : (
+            trend.wonRevenue.map((bucket) => (
+              <div key={bucket.key} className="my-3 grid grid-cols-[minmax(0,60px)_1fr_auto] items-center gap-2.5 text-xs">
+                <span className="text-[var(--ff-text-secondary)]">{bucket.label}</span>
+                <div className="h-2.5 overflow-hidden rounded-full bg-[#312644]">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${maxRevenueTrend > 0 ? Math.max((bucket.value / maxRevenueTrend) * 100, bucket.value > 0 ? 4 : 0) : 0}%`,
+                      background: "linear-gradient(90deg, var(--ff-purple-500), var(--ff-magenta))",
+                    }}
+                  />
+                </div>
+                <b className="ff-tabular-nums text-[var(--ff-text-primary)]">{formatBRL(bucket.value)}</b>
+              </div>
+            ))
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
+        <ChartCard title="Segmentos" subtitle="Empresas por categoria">
+          {breakdown.segments.length === 0 ? (
+            <EmptyState icon={Building2} title="Nenhuma empresa cadastrada" />
+          ) : (
+            breakdown.segments.map((segment) => (
+              <FunnelRow key={segment.key} label={segment.label} count={segment.count} max={maxSegmentCount} />
+            ))
+          )}
+        </ChartCard>
+
+        <ChartCard title="Origens" subtitle="Empresas por origem de cadastro">
+          {breakdown.origins.length === 0 ? (
+            <EmptyState icon={Building2} title="Nenhuma empresa cadastrada" />
+          ) : (
+            breakdown.origins.map((origin) => (
+              <FunnelRow key={origin.key} label={origin.label} count={origin.count} max={maxOriginCount} />
+            ))
+          )}
+        </ChartCard>
+      </div>
+
+      <SalesInsightsSection />
     </div>
   );
 }

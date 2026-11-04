@@ -557,6 +557,7 @@ export type Database = {
           expected_close_at: string | null
           id: string
           lead_id: string
+          lost_reason: string | null
           organization_id: string
           proposal_id: string | null
           status: string
@@ -569,6 +570,7 @@ export type Database = {
           expected_close_at?: string | null
           id?: string
           lead_id: string
+          lost_reason?: string | null
           organization_id: string
           proposal_id?: string | null
           status?: string
@@ -581,6 +583,7 @@ export type Database = {
           expected_close_at?: string | null
           id?: string
           lead_id?: string
+          lost_reason?: string | null
           organization_id?: string
           proposal_id?: string | null
           status?: string
@@ -1694,10 +1697,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      recompute_proposal_total: {
+        Args: { p_proposal_id: string }
+        Returns: undefined
+      }
       reorder_pipeline_stages: {
         Args: { p_ordered_ids: string[]; p_organization_id: string }
         Returns: undefined
       }
+      shares_org_with: { Args: { target_user: string }; Returns: boolean }
     }
     Enums: {
       lead_priority: "low" | "medium" | "high"

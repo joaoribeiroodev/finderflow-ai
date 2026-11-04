@@ -54,6 +54,11 @@ test.describe("Páginas de autenticação", () => {
     // Fase 6: billing.
     "/billing",
     "/billing/return",
+    // Fase 7: serviços, propostas, relatórios.
+    "/services",
+    "/proposals",
+    "/proposals/00000000-0000-4000-8000-000000000000",
+    "/reports",
   ]) {
     test(`${path} também redireciona para /login quando não autenticado`, async ({ page }) => {
       await page.goto(path);

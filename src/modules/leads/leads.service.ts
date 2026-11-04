@@ -103,6 +103,29 @@ export async function listLeadsForKanban(
   return (data ?? []) as unknown as LeadListItem[];
 }
 
+/** Lista compacta para seletores (ex.: criar proposta a partir de um lead). */
+export async function listLeadsForSelect(
+  supabase: Supabase,
+  organizationId: string,
+): Promise<{ id: string; companyName: string }[]> {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, company:companies!leads_company_same_org_fk(name)")
+    .eq("organization_id", organizationId)
+    .is("archived_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    logger.error("Falha ao listar leads para seletor", { error: error.message, organizationId });
+    throw new Error("Não foi possível carregar os leads.");
+  }
+
+  return (data ?? [])
+    .filter((row): row is typeof row & { company: { name: string } } => row.company !== null)
+    .map((row) => ({ id: row.id, companyName: row.company.name }));
+}
+
 export interface LeadDetail extends LeadRow {
   company: Database["public"]["Tables"]["companies"]["Row"] | null;
   stage: Database["public"]["Tables"]["pipeline_stages"]["Row"] | null;
