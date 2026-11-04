@@ -398,7 +398,8 @@ create table public.ai_conversations (
   title text,
   status text not null default 'active',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
 );
 
 create table public.ai_messages (

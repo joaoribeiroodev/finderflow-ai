@@ -162,17 +162,32 @@ describe.skipIf(!hasEnv)("Isolamento cross-tenant via RLS", () => {
     expect(data ?? []).toHaveLength(0);
   });
 
-  it("usuário B (member) não consegue promover-se a admin na própria org sem ser admin", async () => {
+  it("usuário B não consegue alterar papéis de membros da organização de A", async () => {
     // userB é owner da própria org (criada via RPC), então este teste
-    // documenta o caso contrário: um membro comum não-admin não pode
-    // alterar papéis. Como ambos os usuários de teste são owners de suas
-    // próprias orgs, usamos a tentativa de update cross-tenant como proxy
-    // de que a policy de update de members exige can_admin_org da org alvo.
-    const { error } = await userB.client
+    // documenta o caso cross-tenant: a policy de update de
+    // organization_members usa USING (can_admin_org(organization_id)), que
+    // filtra silenciosamente a linha antes do UPDATE rodar — por isso o
+    // PostgREST retorna sucesso com 0 linhas afetadas, e não um erro (ver
+    // verificação equivalente via SQL direto em
+    // supabase/tests/rls-cross-tenant-verification.sql, que confirma
+    // `GET DIAGNOSTICS row_count = 0`). A asserção correta é que nenhuma
+    // linha foi devolvida/alterada, e que o papel original permanece
+    // intacto quando lido de volta pelo próprio userA.
+    const { data: updated, error } = await userB.client
       .from("organization_members")
       .update({ role: "admin" })
-      .eq("organization_id", userA.organizationId);
+      .eq("organization_id", userA.organizationId)
+      .select("id");
 
-    expect(error).not.toBeNull();
+    expect(error).toBeNull();
+    expect(updated ?? []).toHaveLength(0);
+
+    const { data: unchanged } = await userA.client
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", userA.organizationId)
+      .eq("user_id", userA.userId)
+      .single();
+    expect(unchanged?.role).toBe("owner");
   });
 });

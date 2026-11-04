@@ -2,7 +2,9 @@
 
 SaaS multi-tenant de prospecção B2B, CRM e inteligência comercial com IA.
 
-> Status: **Fase 0/1 em andamento** — fundação, autenticação e multi-tenancy.
+> Status: **Fase 0/1 concluída** — fundação, autenticação e multi-tenancy,
+> com isolamento RLS verificado contra um projeto Supabase real
+> (`lxzsefabmnagiaywaxeb`, org `joaoribeiroodev`, região `sa-east-1`).
 > Consulte `docs/07-backlog-and-acceptance.md` para o backlog completo e
 > `docs/DECISIONS.md` para decisões técnicas e pendências.
 
@@ -87,12 +89,16 @@ provider existe, mas a chamada real só ocorre quando configurada.
 `tests/integration/rls-cross-tenant.test.ts` cria dois usuários em duas
 organizações distintas e confirma que nenhum lê ou grava dados do outro,
 usando apenas a API pública (nunca a service role). Requer um Supabase
-local (`npm run supabase:start`, precisa de Docker) ou um projeto de
-desenvolvimento dedicado.
+local (`npm run supabase:start`, precisa de Docker) ou a
+`SUPABASE_SERVICE_ROLE_KEY` de um projeto de desenvolvimento dedicado.
 
-⚠️ Este teste **ainda não foi executado** no ambiente em que a Fase 0/1 foi
-implementada (sem daemon Docker disponível ali). Rode-o antes de avançar
-para a Fase 2 — ver `docs/DECISIONS.md`.
+✅ O isolamento RLS **já foi verificado** contra o projeto Supabase real
+(`lxzsefabmnagiaywaxeb`) — ver `supabase/tests/rls-cross-tenant-verification.sql`
+(roda via SQL direto, sem precisar da service_role key) e o resultado em
+`docs/DECISIONS.md`. O teste de integração em Vitest continua sendo a forma
+preferida para rodar localmente contra a stack HTTP/PostgREST real; para
+isso, preencha `TEST_SUPABASE_SERVICE_ROLE_KEY` em `.env.local` (chave obtida
+em Project Settings → API no dashboard do Supabase).
 
 ## Estrutura do projeto
 
@@ -105,6 +111,7 @@ src/
   types/          tipos do banco (database.ts)
 supabase/
   migrations/     migrations versionadas
+  tests/          scripts SQL de verificação (ex.: isolamento RLS, sem depender da service_role key)
 docs/             especificação do produto (requisitos, arquitetura, etc.)
 tests/integration/  testes de integração (RLS)
 ```
