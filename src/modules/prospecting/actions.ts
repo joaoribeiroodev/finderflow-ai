@@ -290,7 +290,7 @@ export async function checkWebPresenceAction(searchResultId: string): Promise<Ch
     return {
       success: false,
       checkerNotConfigured: true,
-      message: "Verificação de presença digital não configurada (defina BRAVE_SEARCH_API_KEY).",
+      message: "Verificação de presença digital indisponível neste ambiente.",
     };
   }
 

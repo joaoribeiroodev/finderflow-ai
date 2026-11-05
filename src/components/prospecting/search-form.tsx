@@ -51,7 +51,7 @@ function WebPresenceBadge({ state }: { state: WebPresenceState }) {
   if (state.status === "not_configured") {
     return (
       <span className="text-xs text-[var(--ff-text-muted)]">
-        Verificação de site não configurada (defina BRAVE_SEARCH_API_KEY).
+        Verificação de site indisponível neste ambiente.
       </span>
     );
   }

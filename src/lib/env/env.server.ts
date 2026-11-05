@@ -86,7 +86,15 @@ export function isBusinessProviderConfigured(env: ServerEnv = getServerEnv()): b
   return Boolean(env.BUSINESS_PROVIDER && env.BUSINESS_PROVIDER_API_KEY);
 }
 
-/** Indica se a verificação de presença digital (site próprio) está configurada. */
-export function isWebPresenceCheckerConfigured(env: ServerEnv = getServerEnv()): boolean {
-  return Boolean(env.BRAVE_SEARCH_API_KEY);
+/**
+ * Indica se a verificação de presença digital (site próprio) está
+ * disponível. Sempre `true`: o verificador padrão (`DomainProbeWebPresenceChecker`,
+ * ver `modules/companies/presence/get-web-presence-checker.ts`) não
+ * depende de nenhuma variável de ambiente — `BRAVE_SEARCH_API_KEY` é
+ * só um upgrade opcional de recall. Mantida como função (em vez de
+ * inlinar `true` nos chamadores) para não espalhar esse conhecimento
+ * de implementação por toda a base.
+ */
+export function isWebPresenceCheckerConfigured(): boolean {
+  return true;
 }

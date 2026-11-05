@@ -510,3 +510,62 @@ implementado em `minha-receita-provider.ts`:
   do secundário que casou> (atividade secundária; principal: <descrição
   do principal>)" — testado com os dois casos reais encontrados
   (`minha-receita-provider.test.ts`, 8/8 testes passando).
+
+## Verificação de presença digital sem API de busca (scraping do site próprio, não do Google/Maps)
+
+O usuário pediu scraping via Google Maps como alternativa à Brave Search
+API, explicando que a IA deveria "refinar" a empresa trazendo informações
+completas. Antes de implementar, verifiquei os Termos de Uso do Google
+Maps Platform (`cloud.google.com/maps-platform/terms`, cláusula 3.2.3,
+"No Scraping"/"No Caching"/"No use for AI/ML training") — proíbem
+explicitamente exportar, extrair ou re-hospedar conteúdo do Google Maps,
+inclusive nomes e endereços de empresas. Recusado por esse motivo, assim
+como já havia sido recusado o scraping de resultados de busca do Google.
+
+O usuário então insistiu, afirmando que "já construímos um web scraping
+antes" e que não quer nenhuma API que exija cartão de crédito ou
+pagamento. Busquei por `playwright|puppeteer|cheerio|scrap` em `src/` e
+confirmei que **nenhum scraper foi implementado neste projeto** — os dois
+únicos resultados eram comentários explicativos sobre a decisão de *não*
+raspar Google/SERP (`business-data-provider.ts`, `web-presence-checker.ts`),
+não código funcional. Comuniquei essa correção factual ao usuário.
+
+Também reavaliei a Brave Search API (já usada neste projeto) à luz do
+requisito "sem cartão": o nível gratuito da Brave ($5/mês em créditos)
+**exige cartão de crédito no cadastro**, o que o próprio usuário rejeitou
+explicitamente nesta conversa — ou seja, mesmo a solução já implementada
+deixou de atender ao requisito dele.
+
+**Solução implementada**: `DomainProbeWebPresenceChecker`
+(`src/modules/companies/presence/domain-probe-web-presence-checker.ts`),
+agora o verificador **padrão** em `get-web-presence-checker.ts`. Em vez de
+consultar um motor de busca de terceiro (que exigiria lidar com Termos de
+Uso de novo), gera domínios candidatos a partir do nome da empresa
+(`domain-candidates.ts`: remove sufixo jurídico — Ltda/ME/EIRELI etc. —,
+acentos e pontuação, tenta `.com.br`/`.com`/`.net.br` com e sem `www`/hífen)
+e visita cada candidato com uma requisição HTTP direta — o mesmo que um
+navegador faria ao digitar o endereço. Detecta páginas de "domínio à
+venda"/estacionado (`PARKING_PAGE_MARKERS`) para não confundir isso com
+"tem site".
+
+Isto não é scraping de busca/mapas de terceiro — nenhum conteúdo de um
+motor de busca é extraído, só URLs que construímos nós mesmos são
+visitadas — por isso não há risco de ToS equivalente ao do Google.
+É 100% grátis e não exige nenhuma chave de API nem cartão de crédito.
+
+**Trade-off aceito e comunicado ao usuário**: recall bem mais baixo que
+uma busca real — só encontra o site se o domínio seguir um padrão
+previsível a partir do nome (não encontra, por exemplo, uma marca com
+domínio bem diferente da razão social). `BraveWebPresenceChecker`
+continua no código como upgrade opcional de recall para quem configurar
+`BRAVE_SEARCH_API_KEY` por conta própria, mas não é mais o padrão.
+
+A etapa de "IA refinando/completando informações da empresa" a partir do
+conteúdo da própria página encontrada (pedida originalmente pelo usuário)
+ainda não foi implementada nesta sessão — fica como próximo passo, junto
+com o histórico de busca e a exportação em XLSX, também pedidos e ainda
+pendentes.
+
+Testes: `domain-candidates.test.ts` (4 casos) e
+`domain-probe-web-presence-checker.test.ts` (6 casos) — 195/195 testes
+passando no total.
