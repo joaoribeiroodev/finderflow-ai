@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger/logger";
 import { normalizeCompanyName, normalizeDocument, normalizeDomain } from "@/lib/utils/normalize";
 import type { CompanyCsvRowInput, CompanyManualInput } from "@/lib/validation/companies";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 
 type Supabase = SupabaseClient<Database>;
 export type CompanyRow = Database["public"]["Tables"]["companies"]["Row"];
@@ -164,7 +164,7 @@ export class DuplicateCompanyError extends Error {
 }
 
 interface CreateCompanyOptions {
-  origin: "manual" | "csv";
+  origin: "manual" | "csv" | "provider";
   /** Se `true`, ignora avisos de duplicata por domínio (usuário já confirmou). Nunca ignora CNPJ idêntico. */
   confirmDuplicate?: boolean;
 }
@@ -240,6 +240,70 @@ export async function createCompany(
   }
 
   return data;
+}
+
+export interface ProviderCompanyInput {
+  name: string;
+  cnpj?: string | null;
+  category?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
+/**
+ * Converte um resultado de `search_results` (vindo de um
+ * `BusinessDataProvider`, ver `providers/business-data-provider.ts`)
+ * em uma empresa cadastrada, com a mesma deduplicação conservadora de
+ * `createCompany`, e registra a origem/atribuição em
+ * `company_source_refs` — nunca perdendo de onde o dado veio, exigido
+ * por `docs/03-database.md` para dados de provedor externo.
+ */
+export async function createCompanyFromSearchResult(
+  supabase: Supabase,
+  organizationId: string,
+  input: ProviderCompanyInput,
+  source: { provider: string; externalId: string; attribution: Record<string, unknown>; fetchedAt: string },
+): Promise<CompanyRow> {
+  const company = await createCompany(
+    supabase,
+    organizationId,
+    {
+      name: input.name,
+      cnpj: input.cnpj ?? undefined,
+      category: input.category ?? undefined,
+      website: input.website ?? undefined,
+      phone: input.phone ?? undefined,
+      email: input.email ?? undefined,
+      city: input.city ?? undefined,
+      state: input.state ?? undefined,
+    },
+    { origin: "provider", confirmDuplicate: false },
+  );
+
+  const { error } = await supabase.from("company_source_refs").insert({
+    organization_id: organizationId,
+    company_id: company.id,
+    provider: source.provider,
+    external_id: source.externalId,
+    attribution: source.attribution as Json,
+    fetched_at: source.fetchedAt,
+  });
+
+  if (error) {
+    // A empresa já foi criada; falhar em registrar a atribuição não deve
+    // desfazer o cadastro (o usuário já viu a empresa criada) — só logamos.
+    logger.error("Falha ao registrar company_source_refs", {
+      error: error.message,
+      organizationId,
+      companyId: company.id,
+      provider: source.provider,
+    });
+  }
+
+  return company;
 }
 
 export async function archiveCompany(

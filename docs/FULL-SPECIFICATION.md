@@ -406,10 +406,15 @@ ASAAS_API_KEY=
 ASAAS_API_BASE_URL=
 ASAAS_WEBHOOK_TOKEN=
 ASAAS_ENVIRONMENT=sandbox
-BUSINESS_PROVIDER=
+BUSINESS_PROVIDER=minha_receita
 BUSINESS_PROVIDER_API_KEY=
+BUSINESS_PROVIDER_BASE_URL=
 CRON_SECRET=
 ```
+
+Nota (atualizado após a Fase 8): `BUSINESS_PROVIDER=minha_receita` já
+integra um provedor real — ver `docs/DECISIONS.md` e
+`src/modules/companies/providers/`.
 
 Nomes são uma proposta; conferir nomenclatura de chaves Supabase vigente e validar tudo com schema de ambiente. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ASAAS_API_KEY` e tokens de webhook são exclusivamente server-side.
 

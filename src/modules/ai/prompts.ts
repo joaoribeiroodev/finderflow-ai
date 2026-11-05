@@ -18,6 +18,7 @@ export const PROMPT_KEYS = {
   copilot: "copilot",
   salesAnalyst: "sales_analyst",
   proposalAssistant: "proposal_assistant",
+  segmentResolver: "segment_resolver",
 } as const;
 
 export const PROMPT_VERSIONS = {
@@ -27,6 +28,7 @@ export const PROMPT_VERSIONS = {
   copilot: "v1",
   salesAnalyst: "v1",
   proposalAssistant: "v1",
+  segmentResolver: "v1",
 } as const;
 
 /**

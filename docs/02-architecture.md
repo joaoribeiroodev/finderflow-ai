@@ -184,10 +184,16 @@ ASAAS_API_KEY=
 ASAAS_API_BASE_URL=
 ASAAS_WEBHOOK_TOKEN=
 ASAAS_ENVIRONMENT=sandbox
-BUSINESS_PROVIDER=
+BUSINESS_PROVIDER=minha_receita
 BUSINESS_PROVIDER_API_KEY=
+BUSINESS_PROVIDER_BASE_URL=
 CRON_SECRET=
 ```
+
+`BUSINESS_PROVIDER=minha_receita` habilita o primeiro provedor real de
+busca de empresas (base de CNPJ da Receita Federal via a API pública
+Minha Receita — minhareceita.org), sem exigir `BUSINESS_PROVIDER_API_KEY`
+(ver `docs/DECISIONS.md` e `src/modules/companies/providers/`).
 
 Nomes são uma proposta; conferir nomenclatura de chaves Supabase vigente e validar tudo com schema de ambiente. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ASAAS_API_KEY` e tokens de webhook são exclusivamente server-side.
 

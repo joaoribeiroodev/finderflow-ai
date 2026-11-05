@@ -1,15 +1,66 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { ErrorState } from "@/components/ui/error-state";
-import { searchCompaniesAction, type SearchActionResult } from "@/modules/prospecting/actions";
+import {
+  convertSearchResultToCompanyAction,
+  searchCompaniesAction,
+  type SearchActionResult,
+  type SearchResultView,
+} from "@/modules/prospecting/actions";
 
 const initialState: SearchActionResult = { success: false };
+
+function ResultRow({ result }: { result: SearchResultView }) {
+  const [isPending, startTransition] = useTransition();
+  const [status, setStatus] = useState<"idle" | "converted" | "error">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  function handleConvert() {
+    startTransition(async () => {
+      const outcome = await convertSearchResultToCompanyAction(result.searchResultId);
+      if (outcome.success) {
+        setStatus("converted");
+      } else {
+        setStatus("error");
+        setMessage(outcome.message ?? "Não foi possível cadastrar esta empresa.");
+      }
+    });
+  }
+
+  return (
+    <li className="flex flex-col gap-2 border-b border-[var(--ff-border-subtle)] py-3 last:border-0 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-0.5">
+        <p className="font-medium text-[var(--ff-text-primary)]">{result.name}</p>
+        {result.category ? <p className="text-sm text-[var(--ff-text-muted)]">{result.category}</p> : null}
+        {result.address ? <p className="text-xs text-[var(--ff-text-muted)]">{result.address}</p> : null}
+        {result.phone ? <p className="text-xs text-[var(--ff-text-muted)]">{result.phone}</p> : null}
+        <p className="text-xs text-[var(--ff-text-muted)]">{result.attributionLabel}</p>
+        {status === "error" && message ? (
+          <p role="alert" className="text-xs text-[var(--ff-danger)]">
+            {message}
+          </p>
+        ) : null}
+      </div>
+      <div className="shrink-0">
+        {status === "converted" ? (
+          <span className="inline-flex items-center gap-1 text-sm text-[var(--ff-success)]">
+            <Check className="size-4" aria-hidden /> Cadastrada
+          </span>
+        ) : (
+          <Button size="sm" variant="secondary" disabled={isPending} onClick={handleConvert}>
+            {isPending ? "Cadastrando..." : "Adicionar como empresa"}
+          </Button>
+        )}
+      </div>
+    </li>
+  );
+}
 
 export function ProspectingSearchForm() {
   const [state, formAction, isPending] = useActionState(searchCompaniesAction, initialState);
@@ -42,6 +93,25 @@ export function ProspectingSearchForm() {
             </Link>
           }
         />
+      ) : state.success && state.results ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-[var(--ff-text-muted)]">
+            {state.resolvedSegmentLabel ? `Segmento reconhecido: ${state.resolvedSegmentLabel}. ` : ""}
+            {state.results.length} resultado{state.results.length === 1 ? "" : "s"} encontrado
+            {state.results.length === 1 ? "" : "s"}.
+          </p>
+          {state.results.length === 0 ? (
+            <p className="text-sm text-[var(--ff-text-muted)]">
+              Nenhuma empresa encontrada com esses filtros. Tente um segmento diferente ou só por UF.
+            </p>
+          ) : (
+            <ul>
+              {state.results.map((result) => (
+                <ResultRow key={result.searchResultId} result={result} />
+              ))}
+            </ul>
+          )}
+        </div>
       ) : state.message ? (
         <p role="alert" className="text-sm text-[var(--ff-danger)]">
           {state.message}

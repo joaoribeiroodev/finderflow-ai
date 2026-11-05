@@ -1,23 +1,53 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { logger } from "@/lib/logger/logger";
+import type { Json } from "@/types/database";
 import { assertCanEditOrganization, PermissionError } from "@/lib/permissions/permissions";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
-import { getBusinessDataProvider, ProviderNotConfiguredError } from "@/modules/companies/providers/business-data-provider";
+import { createCompanyFromSearchResult, DuplicateCompanyError } from "@/modules/companies/companies.service";
+import {
+  BusinessSearchQueryTooBroadError,
+  getBusinessDataProvider,
+  ProviderNotConfiguredError,
+  type BusinessSearchResultItem,
+} from "@/modules/companies/providers/business-data-provider";
+import { resolveSegmentToCnae } from "@/modules/companies/providers/cnae-resolver";
+
+export interface SearchResultView {
+  searchResultId: string;
+  name: string;
+  category?: string;
+  address?: string;
+  phone?: string;
+  attributionLabel: string;
+  alreadyConverted: boolean;
+}
 
 export interface SearchActionResult {
   success: boolean;
   message?: string;
   providerNotConfigured?: boolean;
+  results?: SearchResultView[];
+  resolvedSegmentLabel?: string | null;
+}
+
+function buildAttributionLabel(attribution: Record<string, unknown>): string {
+  const source = typeof attribution.source === "string" ? attribution.source : undefined;
+  const via = typeof attribution.via === "string" ? attribution.via : undefined;
+  if (source && via) return `Dados: ${source} (via ${via})`;
+  return source ?? via ?? "Dados de provedor externo";
 }
 
 /**
- * Registra a intenção de busca (`searches`) e tenta executá-la via o
- * `BusinessDataProvider` configurado. Hoje isso sempre falha com
- * `ProviderNotConfiguredError` (ver business-data-provider.ts) — a
- * action ainda assim grava a busca para já exercitar o schema e a
- * auditoria (`searches.status = 'failed'`), e devolve uma mensagem clara
- * em vez de fingir um resultado.
+ * Registra a intenção de busca (`searches`), resolve o segmento em
+ * texto livre para CNAE (quando possível) e executa a busca via o
+ * `BusinessDataProvider` configurado. Os resultados são salvos em
+ * `search_results` (nunca criando `companies` automaticamente — a
+ * conversão é uma ação explícita do usuário, ver
+ * `convertSearchResultToCompanyAction`), para que uma busca cara nunca
+ * se perca se o usuário recarregar a página antes de decidir o que
+ * importar.
  */
 export async function searchCompaniesAction(
   _prev: SearchActionResult,
@@ -47,15 +77,19 @@ export async function searchCompaniesAction(
   const state = formData.get("state");
   const city = formData.get("city");
 
+  const segmentText = typeof segment === "string" ? segment : undefined;
+  const stateText = typeof state === "string" && state.trim().length > 0 ? state.trim() : undefined;
+  const cityText = typeof city === "string" && city.trim().length > 0 ? city.trim() : undefined;
+
   const { data: search, error: insertError } = await supabase
     .from("searches")
     .insert({
       organization_id: organizationId,
       created_by: user.id,
       query: query.trim(),
-      segment: typeof segment === "string" && segment.length > 0 ? segment : null,
-      state: typeof state === "string" && state.length > 0 ? state.toUpperCase() : null,
-      city: typeof city === "string" && city.length > 0 ? city : null,
+      segment: segmentText && segmentText.length > 0 ? segmentText : null,
+      state: stateText?.toUpperCase() ?? null,
+      city: cityText ?? null,
       status: "queued",
     })
     .select("id")
@@ -65,21 +99,170 @@ export async function searchCompaniesAction(
     return { success: false, message: "Não foi possível registrar a busca." };
   }
 
+  const segmentResolution = await resolveSegmentToCnae(supabase, organizationId, {
+    segment: segmentText,
+    query: query.trim(),
+  });
+
   try {
     const provider = getBusinessDataProvider();
-    await provider.search({
+    const page = await provider.search({
       query: query.trim(),
-      segment: typeof segment === "string" ? segment : undefined,
-      state: typeof state === "string" ? state : undefined,
-      city: typeof city === "string" ? city : undefined,
+      segment: segmentText,
+      state: stateText,
+      city: cityText,
+      cnaeCodes: segmentResolution.cnaeCodes.length > 0 ? segmentResolution.cnaeCodes : undefined,
     });
-    await supabase.from("searches").update({ status: "completed" }).eq("id", search.id);
-    return { success: true };
+
+    const resultViews: SearchResultView[] = [];
+
+    for (const item of page.items) {
+      const { data: resultRow, error: resultError } = await supabase
+        .from("search_results")
+        .insert({
+          organization_id: organizationId,
+          search_id: search.id,
+          provider: item.provider,
+          external_id: item.externalId,
+          display_data: buildDisplayData(item) as Json,
+          attribution: item.attribution as Json,
+          fetched_at: item.fetchedAt,
+          expires_at: item.expiresAt ?? null,
+        })
+        .select("id")
+        .single();
+
+      if (resultError || !resultRow) {
+        logger.error("Falha ao persistir resultado de busca", {
+          error: resultError?.message,
+          organizationId,
+          searchId: search.id,
+        });
+        continue;
+      }
+
+      resultViews.push({
+        searchResultId: resultRow.id,
+        name: item.name,
+        category: item.category,
+        address: item.address,
+        phone: item.phone,
+        attributionLabel: buildAttributionLabel(item.attribution),
+        alreadyConverted: false,
+      });
+    }
+
+    await supabase
+      .from("searches")
+      .update({
+        status: "completed",
+        total_results: resultViews.length,
+        providers: [provider.name],
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", search.id);
+
+    return { success: true, results: resultViews, resolvedSegmentLabel: segmentResolution.matchedLabel };
   } catch (error) {
     await supabase.from("searches").update({ status: "failed" }).eq("id", search.id);
+
     if (error instanceof ProviderNotConfiguredError) {
       return { success: false, providerNotConfigured: true, message: error.message };
     }
+    if (error instanceof BusinessSearchQueryTooBroadError) {
+      return { success: false, message: error.message };
+    }
     return { success: false, message: "Não foi possível buscar empresas agora." };
+  }
+}
+
+function buildDisplayData(item: BusinessSearchResultItem): Record<string, unknown> {
+  return {
+    name: item.name,
+    category: item.category,
+    address: item.address,
+    phone: item.phone,
+    website: item.website,
+    raw: item.displayData,
+  };
+}
+
+export interface ConvertResultActionState {
+  success: boolean;
+  message?: string;
+  companyId?: string;
+}
+
+/**
+ * Converte um `search_results` já salvo em uma empresa cadastrada
+ * (ver `createCompanyFromSearchResult`). Nunca mescla automaticamente
+ * com uma empresa parecida — a mesma política conservadora do CSV.
+ */
+export async function convertSearchResultToCompanyAction(
+  searchResultId: string,
+): Promise<ConvertResultActionState> {
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  try {
+    await assertCanEditOrganization(supabase, organizationId);
+  } catch (error) {
+    if (error instanceof PermissionError) return { success: false, message: error.message };
+    throw error;
+  }
+
+  const { data: resultRow, error: fetchError } = await supabase
+    .from("search_results")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("id", searchResultId)
+    .maybeSingle();
+
+  if (fetchError || !resultRow) {
+    return { success: false, message: "Resultado de busca não encontrado." };
+  }
+
+  if (resultRow.company_id) {
+    return { success: false, message: "Este resultado já foi convertido em empresa." };
+  }
+
+  const displayData = (resultRow.display_data ?? {}) as Record<string, unknown>;
+  const raw = (displayData.raw ?? {}) as Record<string, unknown>;
+
+  try {
+    const company = await createCompanyFromSearchResult(
+      supabase,
+      organizationId,
+      {
+        name: typeof displayData.name === "string" ? displayData.name : "(sem nome)",
+        cnpj: resultRow.external_id,
+        category: typeof displayData.category === "string" ? displayData.category : undefined,
+        website: typeof displayData.website === "string" ? displayData.website : undefined,
+        phone: typeof displayData.phone === "string" ? displayData.phone : undefined,
+        email: typeof raw.email === "string" ? raw.email : undefined,
+        city: typeof raw.municipio === "string" ? raw.municipio : undefined,
+        state: typeof raw.uf === "string" ? raw.uf : undefined,
+      },
+      {
+        provider: resultRow.provider,
+        externalId: resultRow.external_id ?? "",
+        attribution: (resultRow.attribution ?? {}) as Record<string, unknown>,
+        fetchedAt: resultRow.fetched_at,
+      },
+    );
+
+    await supabase.from("search_results").update({ company_id: company.id }).eq("id", resultRow.id);
+
+    return { success: true, companyId: company.id };
+  } catch (error) {
+    if (error instanceof DuplicateCompanyError) {
+      return { success: false, message: error.message };
+    }
+    logger.error("Falha ao converter resultado de busca em empresa", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      organizationId,
+      searchResultId,
+    });
+    return { success: false, message: "Não foi possível cadastrar esta empresa agora." };
   }
 }

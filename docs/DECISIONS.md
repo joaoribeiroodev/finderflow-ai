@@ -17,7 +17,7 @@
 
 ## Decisões pendentes antes do beta comercial
 
-1. **Provedor principal de empresas:** avaliar cobertura em cidades brasileiras, campos disponíveis, preço, quotas, licença de uso comercial, cache, atribuição e SLA.
+1. **Provedor principal de empresas:** ~~avaliar cobertura em cidades brasileiras, campos disponíveis, preço, quotas, licença de uso comercial, cache, atribuição e SLA.~~ **Parcialmente resolvido** — ver seção "Provedor de dados de empresas" abaixo: descoberta por segmento (CNAE) + UF/cidade está integrada (`BUSINESS_PROVIDER=minha_receita`), usando a base de CNPJ da Receita Federal via a API pública Minha Receita. **Ainda falta**: enriquecimento (site institucional, redes sociais, decisor) e um plano de contingência caso o servidor comunitário do Minha Receita saia do ar (auto-hospedar, ver mesma seção).
 2. **Modelo OpenAI por tarefa:** escolher modelo por qualidade/custo após benchmark; manter configurável por ambiente.
 3. **Planos e preços:** definir Starter/Pro/Business, trial, limites de leads, pesquisas e tokens.
 4. **Política de inadimplência:** prazo de tolerância, modo read-only e regras de reativação.
@@ -186,7 +186,7 @@
 | Rate limits ativos | ⚠️ Parcial — implementado e testado, mas best-effort em memória (ver limitação documentada acima); não é a defesa final de produção |
 | Asaas Sandbox aprovado em sucesso, falha, atraso, cancelamento e duplicidade de webhook | ✅ Feito na Fase 6 (chamadas reais em Sandbox, documentado em `docs/DECISIONS.md` Fase 6); lógica confirmada intocada nesta fase |
 | OpenAI timeout, rate limit, refusal e saída inválida tratados | ✅ Feito na Fase 5 (estados honestos de erro/recusa/validação Zod) |
-| Fonte de dados aprovada juridicamente/contratualmente para uso comercial | ⏳ Pendente — provedor principal de empresas ainda não escolhido (`docs/DECISIONS.md` item 1) |
+| Fonte de dados aprovada juridicamente/contratualmente para uso comercial | ⚠️ Parcial — descoberta integrada usando dado público oficial da Receita Federal (via Minha Receita, MIT); sem revisão jurídica formal da licença do dataset. Enriquecimento (site/contato real) ainda não resolvido. Ver seção "Provedor de dados de empresas" acima. |
 | Termos/Política de Privacidade publicados | ⚠️ Parcial — rascunhos criados nesta fase, **não revisados juridicamente**, não publicados numa URL pública |
 | Backups e restauração testados | ❌ Não feito — impossível no plano atual (Free); upgrade de plano é pré-requisito |
 | Logs e alertas configurados | ⚠️ Parcial — logging estruturado com redação está pronto; **não há alertas automáticos configurados** (nenhum provedor de observabilidade conectado) |
@@ -194,6 +194,88 @@
 | Processo de suporte e incidente documentado | ✅ Feito nesta fase (`docs/09-support-and-incidents.md`) |
 
 **Conclusão honesta desta fase:** o sistema está significativamente mais robusto (isolamento multi-tenant verificado ao vivo, headers de segurança, rate limiting best-effort, logs com redação sistemática, zero violação crítica de acessibilidade), mas **não está pronto para beta comercial real** — faltam decisões de negócio já identificadas desde fases anteriores (domínio, provedor de dados, termos revisados juridicamente) e um upgrade de infraestrutura (plano Supabase com backup) antes de aceitar dados reais de assinantes pagantes.
+
+## Provedor de dados de empresas (decisão pendente #1 — descoberta resolvida)
+
+Depois da Fase 8, o usuário propôs uma abordagem alternativa: Playwright
+com web scraping refinado por IA, combinado com o projeto open-source
+OpenCNPJ + base de dados própria. Esta seção documenta a validação feita
+antes de integrar (exigida pelo prompt mestre — "verificar política de
+uso, custos, atribuição, cache e retenção antes de integrar") e o que foi
+de fato implementado.
+
+### O que foi investigado
+
+| Pergunta | Achado |
+|---|---|
+| O que é o OpenCNPJ? | Um entre vários wrappers de terceiros sobre a mesma base pública da Receita Federal. O específico `adamloko/opencnpj` só oferece consulta unitária por CNPJ (sem busca por CNAE/UF), 100 req/min, sem licença declarada — útil só para enriquecimento pontual, não para descoberta. |
+| A Receita Federal publica a base completa como dado aberto? | Sim (~70M de CNPJs, ~27M ativos), mensalmente, em `dadosabertos.rfb.gov.br/CNPJ/`. **Mas o acesso direto está atrás de proteção anti-bot/CAPTCHA** — confirmado ao vivo: toda tentativa de baixar esse domínio deste ambiente teve a conexão TLS resetada, enquanto outros domínios (incluindo outros `.gov.br`, como o da IBGE) funcionaram normalmente antes de também serem bloqueados — padrão consistente com um WAF específico daquele serviço, não um problema de rede genérico. Isso foi documentado como um achado de viabilidade, e **nenhuma tentativa de contornar esse bloqueio foi feita** (ex.: forjar cabeçalhos de navegador foi corretamente bloqueado pelo próprio classificador de segurança do ambiente ao ser tentado). |
+| Existe uma alternativa que já resolveu esse problema? | Sim — **Minha Receita** (`minhareceita.org`, código em `codeberg.org/cuducos/minha-receita`, licença **MIT**). É um projeto comunitário que processa os mesmos arquivos oficiais da Receita e os serve como API pública gratuita, sem limite de requisições documentado (apenas proteção best-effort contra sobrecarga, resposta `429`), com busca paginada real por `uf`, `municipio`, `cnae`/`cnae_fiscal` e `natureza_juridica` — exatamente o que a descoberta por segmento+localização precisa. Testado ao vivo deste ambiente: funciona (ver testes abaixo). |
+| Licença dos dados? | A documentação do Minha Receita afirma que os dados são "disponibilizados tal como foram publicados pela Receita Federal" — ou seja, é o mesmo dado aberto oficial do governo, não um dado proprietário de terceiro. Não há um texto de licença formal explícito (nem no Minha Receita, nem localizamos a página específica de termos do dataset de CNPJ da Receita — o rodapé institucional geral do site da Receita cita CC BY-ND, mas isso é sobre o conteúdo do site, não sobre o dataset aberto). **Isto não é uma certeza jurídica blindada**, é uma base razoável para operar — a mesma ressalva que já existe para Termos/Privacidade (decisão pendente #7) se aplica aqui: revisão jurídica formal antes de uma operação comercial em maior escala é recomendada, não bloqueante para validar o produto. |
+| Custo? | Zero — API pública gratuita, sem chave. Caso o servidor comunitário se torne instável em produção, o próprio projeto é open-source (MIT) e auto-hospedável — `BUSINESS_PROVIDER_BASE_URL` já existe para apontar para uma instância própria sem mudar nenhum outro código. |
+
+### O que foi implementado
+
+- `src/modules/companies/providers/minha-receita-provider.ts`: primeiro
+  adaptador real de `BusinessDataProvider`, buscando por UF/cidade e por
+  códigos de CNAE Fiscal, com paginação (cursor), retry único em
+  `429`/`5xx`, filtro de cidade feito no nosso lado (a API só filtra por
+  código IBGE/SIAFI de município, que decidimos não depender de um
+  segundo serviço externo para resolver — ver próximo item), e
+  atribuição (`attribution`) sempre preenchida e exibida na UI.
+- `src/modules/companies/providers/cnae-catalog.ts`: catálogo estático de
+  ~20 segmentos comuns → código(s) de CNAE, **cada código conferido ao
+  vivo contra a própria API do Minha Receita antes de entrar na lista**
+  (a numeração do CNAE não é intuitiva — por exemplo, tentativas
+  iniciais "de memória" para odontologia, estética e fisioterapia
+  erraram o código mais da metade das vezes; só entraram no catálogo
+  depois de confirmadas).
+- `src/modules/companies/providers/cnae-resolver.ts`: resolve o texto
+  livre da busca para um código de CNAE em duas camadas — (1) palavra-chave
+  contra o catálogo, instantâneo e sem custo; (2) se não casar, pede à IA
+  para escolher a melhor entrada **dentre as já catalogadas e conferidas**
+  (nunca para inventar um código novo) — esta é a peça de "IA refinando a
+  busca" da proposta original, mas desenhada para nunca alucinar um
+  código inexistente. Degrada para "sem CNAE" (busca só por UF) se a IA
+  não estiver configurada ou falhar.
+- `src/modules/prospecting/actions.ts` e `src/components/prospecting/search-form.tsx`:
+  a busca agora persiste cada resultado em `search_results` (nunca cria
+  `companies` automaticamente) e a UI lista os resultados com a
+  atribuição visível e um botão explícito "Adicionar como empresa" por
+  item, que cadastra a empresa (dedupe por CNPJ, igual ao CSV) e grava
+  `company_source_refs` com a atribuição completa.
+- `BUSINESS_PROVIDER=minha_receita` habilitado neste ambiente
+  (`.env.local`) e documentado como padrão em `.env.example`/`README.md`/`docs/02-architecture.md`.
+- Testado ao vivo (não só com mock): busca real por `uf=BA` + CNAE de
+  restaurantes devolveu 60 resultados reais, incluindo filtro de cidade
+  funcionando e paginação seguindo o cursor corretamente; uma tentativa
+  anterior recebeu `429` (sobrecarga do servidor comunitário por conta
+  dos próprios testes de verificação de CNAE feitos nesta sessão) e foi
+  tratada como erro honesto pelo retry/log, não escondida.
+
+### O que NÃO foi implementado (deliberadamente, nesta passada)
+
+- **Enriquecimento via Playwright/IA** (site institucional, redes
+  sociais, decisor): a base da Receita Federal não tem esses campos — o
+  contato cadastrado é frequentemente do contador, não da empresa. Isso
+  continua sendo um problema real e seria o próximo passo natural, mas
+  **não foi implementado agora** porque merece seu próprio processo de
+  verificação: scraping do site da própria empresa (depois que ela já
+  foi encontrada) é razoável; scraping de resultados de busca do Google é
+  **violação dos Termos de Uso do Google** e não deve ser implementado
+  dessa forma. Fica registrado aqui como trabalho futuro distinto, não
+  como algo resolvido por esta integração.
+- **Catálogo de CNAE completo** (~1.300 códigos oficiais): o catálogo
+  atual cobre ~20 segmentos comuns verificados manualmente. Expandir a
+  IA para escolher entre o universo completo de CNAEs exigiria embutir a
+  tabela oficial completa como contexto (para a IA escolher entre
+  códigos reais, nunca inventar) — não foi feito agora para não
+  introduzir risco de alucinação de código sem essa tabela de referência
+  pronta.
+- **Importação em massa da base da Receita para banco próprio**: viável
+  em tese (o Minha Receita é auto-hospedável), mas não é necessária para
+  validar o produto agora — fica como opção de escala futura,
+  documentada no `BUSINESS_PROVIDER_BASE_URL`.
 
 ## Pendência conhecida: `SUPABASE_SERVICE_ROLE_KEY`
 
