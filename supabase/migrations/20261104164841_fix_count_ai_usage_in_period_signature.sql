@@ -3,7 +3,7 @@
 -- copilot, ...), não de uma única "feature_key" literal igual ao valor
 -- gravado em `operation` — esses dois conceitos são campos diferentes
 -- (feature_key da quota vs. operation de cada chamada). A versão anterior
--- desta função (20261104180000) filtrava por `operation = p_feature_key`,
+-- desta função (20261104164713) filtrava por `operation = p_feature_key`,
 -- o que nunca bateria com o `operation` real gravado por `log_ai_usage`
 -- (ex.: "company_analyzer"). Trocando a assinatura para contar tudo no
 -- período, sem filtrar por operação.

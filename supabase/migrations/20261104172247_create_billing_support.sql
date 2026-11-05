@@ -5,7 +5,7 @@
 -- `plans`/`organization_subscriptions`/`billing_payments`/
 -- `asaas_webhook_events`/`entitlements` já existem desde a Fase 0/1
 -- (docs/03-database.md) com RLS aplicada (ver migration
--- 20261104000000_core_schema.sql) — esta migration só acrescenta o que
+-- 20261104143307_core_schema.sql) — esta migration só acrescenta o que
 -- faltava: dados de faturamento da organização (exigidos pela API do
 -- Asaas para criar um customer — `name`+`cpfCnpj` obrigatórios, conferido
 -- em docs.asaas.com/reference/create-new-customer durante a

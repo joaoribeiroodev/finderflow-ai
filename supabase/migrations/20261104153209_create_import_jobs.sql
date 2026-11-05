@@ -33,7 +33,7 @@ create index import_jobs_org_created_idx on public.import_jobs (organization_id,
 alter table public.import_jobs enable row level security;
 
 -- Mesmo padrão aplicado às demais tabelas tenant-scoped (ver migration
--- 20261104000000_core_schema.sql): leitura para qualquer membro, escrita
+-- 20261104143307_core_schema.sql): leitura para qualquer membro, escrita
 -- para quem pode editar dados da organização, exclusão restrita a admin.
 create policy import_jobs_select_member on public.import_jobs
   for select to authenticated using (public.is_org_member(organization_id));

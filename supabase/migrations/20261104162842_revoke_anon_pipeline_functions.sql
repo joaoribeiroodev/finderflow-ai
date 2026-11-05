@@ -1,7 +1,7 @@
 -- Advisor de segurança (mcp__Supabase__get_advisors) apontou que `anon`
 -- conseguia executar move_lead_stage e reorder_pipeline_stages via
 -- PostgREST, apesar do `revoke all ... from public` já presente na
--- migration que as criou (20261104170000_create_pipeline_functions.sql).
+-- migration que as criou (20261104160928_create_pipeline_functions.sql).
 --
 -- Causa: privilégios padrão do projeto (`pg_default_acl`) concedem
 -- EXECUTE em novas funções diretamente a anon/authenticated/service_role

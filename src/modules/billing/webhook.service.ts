@@ -64,7 +64,7 @@ export type WebhookProcessingOutcome =
 
 /**
  * Processa um evento de webhook do Asaas de ponta a ponta — idempotente
- * via `claim_asaas_webhook_event` (migration 20261104200000), com toda
+ * via `claim_asaas_webhook_event` (migration 20261104172247), com toda
  * leitura/escrita usando o cliente admin (sem sessão de usuário aqui,
  * por design — docs/05-integrations.md §5.2 "Webhook").
  */
