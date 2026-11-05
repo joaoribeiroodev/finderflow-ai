@@ -470,3 +470,43 @@ não tem Docker); a correção foi verificada lendo o conteúdo de cada
 migration em ordem e confirmando que toda função/tabela é criada antes de
 ser referenciada por uma migration posterior — o usuário deve confirmar
 rodando `npm run supabase:start` novamente no seu ambiente local.
+
+## Reverificação do adaptador Minha Receita contra a documentação oficial
+
+A pedido explícito do usuário ("verique na internet como usar o minha
+receita api e aplique no meu sistema"), revisitei `docs.minhareceita.org`
+(páginas "Como usar" e "Dicionário de dados") e testei ao vivo contra
+`https://minhareceita.org` para confirmar/corrigir o que já estava
+implementado em `minha-receita-provider.ts`:
+
+- **Confirmado, sem mudança**: `cnae` (não `cnae_fiscal`) casa com o CNAE
+  principal OU qualquer secundário da empresa — é o parâmetro certo para
+  descoberta ampla, e já era o usado. Múltiplos códigos repetindo o
+  parâmetro (`?cnae=X&cnae=Y`) também está documentado e já era a forma
+  usada. `cursor` opaco, `limit` até 1024 — tudo confirmado como já
+  implementado.
+- **Confirmado, só documentado melhor**: `municipio` na busca espera um
+  código IBGE/SIAFI, não nome de cidade — por isso o filtro de cidade
+  continua sendo feito no lado do app comparando o campo `municipio`
+  (nome) de cada resultado já retornado, não pela API. Isso já era a
+  implementação; só não estava explicitamente justificado no código.
+- **Divergência encontrada entre a documentação escrita e o comportamento
+  real**: a página "Dicionário de dados" descreve `cnae_fiscal` como
+  string, mas uma chamada real (`GET /?uf=BA&cnae=5611201&limit=3`) retorna
+  esse campo como número JSON (`"cnae_fiscal": 5620101`, sem aspas).
+  Mantido como `number` no código (o comportamento real da API observado
+  ao vivo prevalece sobre o texto da documentação, que pode estar
+  desatualizado ou impreciso).
+- **Lacuna real corrigida**: quando uma empresa aparece numa busca por ter
+  casado via um CNAE **secundário** (não o principal), a UI mostrava só
+  `cnae_fiscal_descricao` — a descrição da atividade principal, que pode
+  não ter nada a ver com o segmento buscado, confundindo o usuário (ex.:
+  buscar "restaurantes" e ver uma empresa cuja atividade principal é
+  "fabricação de produtos de padaria", sem explicação). Confirmado ao vivo
+  que esse caso é comum (não hipotético): de 5 resultados reais para
+  `cnae=5611201` em `uf=BA`, 2 casaram pelo principal e 2 pelo secundário.
+  Corrigido em `mapToResultItem`/`resolveMatchedCategory`: quando o match
+  foi por um CNAE secundário, a categoria mostrada passa a ser "<descrição
+  do secundário que casou> (atividade secundária; principal: <descrição
+  do principal>)" — testado com os dois casos reais encontrados
+  (`minha-receita-provider.test.ts`, 8/8 testes passando).

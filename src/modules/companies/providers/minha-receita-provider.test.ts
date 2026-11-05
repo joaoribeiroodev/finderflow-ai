@@ -93,6 +93,32 @@ describe("MinhaReceitaProvider", () => {
     expect(page.items[0].externalId).toBe("11222333000181");
   });
 
+  it("indica quando o match foi por CNAE secundário, não o principal", async () => {
+    const secondaryMatchCompany = {
+      ...SAMPLE_COMPANY,
+      cnae_fiscal: 5620101,
+      cnae_fiscal_descricao: "Fornecimento de alimentos preparados preponderantemente para consumo domiciliar",
+      cnaes_secundarios: [{ codigo: 5611201, descricao: "Restaurantes e similares" }],
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [secondaryMatchCompany] }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const page = await provider.search({ query: "restaurantes", cnaeCodes: ["5611201"] });
+
+    expect(page.items[0].category).toBe(
+      "Restaurantes e similares (atividade secundária; principal: Fornecimento de alimentos preparados preponderantemente para consumo domiciliar)",
+    );
+  });
+
+  it("mantém a descrição do CNAE principal quando ele mesmo casou com a busca", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [SAMPLE_COMPANY] }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const page = await provider.search({ query: "restaurantes", cnaeCodes: ["5611201"] });
+
+    expect(page.items[0].category).toBe("Restaurantes e similares");
+  });
+
   it("repete uma vez em 429 e lança erro claro se persistir", async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
 

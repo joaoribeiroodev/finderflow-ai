@@ -19,12 +19,29 @@ import {
  * Por isso este adaptador trata timeouts/5xx/429 como falhas normais
  * (com um retry simples), nunca como bug do nosso lado.
  *
- * A busca paginada (`GET /?uf=..&cnae=..`) é documentada pelo próprio
- * projeto como "em fase de testes" — os parâmetros podem mudar. Isolar
- * isso neste único arquivo é exatamente o propósito do contrato
- * `BusinessDataProvider`: se a API mudar ou se decidirmos auto-hospedar
- * uma instância própria (`BUSINESS_PROVIDER_BASE_URL`), só este arquivo
- * muda.
+ * A busca paginada (`GET /?uf=..&cnae=..&cursor=..`) é documentada em
+ * docs.minhareceita.org/como-usar/ como "beta" — a própria página avisa
+ * que os parâmetros e o formato da resposta podem mudar, e que buscas
+ * (diferente da consulta por CNPJ) podem ser limitadas por instância do
+ * servidor, respondendo 429. Reverificado nesta sessão (2026-11-05)
+ * contra essa página oficial:
+ * - `cnae` casa com o CNAE principal OU qualquer secundário da empresa
+ *   (mais abrangente para descoberta); `cnae_fiscal` só casaria com o
+ *   principal — usamos `cnae` deliberadamente.
+ * - Múltiplos valores do mesmo campo são aceitos repetindo o parâmetro
+ *   (`?cnae=X&cnae=Y`), que é a forma usada aqui.
+ * - `municipio` na busca espera um **código** IBGE/SIAFI, não o nome da
+ *   cidade — não implementado aqui por falta de uma tabela de mapeamento
+ *   nome↔código; por isso o filtro de cidade é feito do lado do cliente,
+ *   comparando o campo `municipio` (nome, já "enriquecido" pela própria
+ *   API) de cada resultado já retornado — ver `normalizeForCompare`.
+ * - `cursor` é opaco e só deve ser reenviado como veio; sem `cursor` na
+ *   resposta, é a última página.
+ *
+ * Isolar tudo isso neste único arquivo é exatamente o propósito do
+ * contrato `BusinessDataProvider`: se a API mudar ou se decidirmos
+ * auto-hospedar uma instância própria (`BUSINESS_PROVIDER_BASE_URL`), só
+ * este arquivo muda.
  */
 
 const MAX_RESULTS_PER_SEARCH = 60;
@@ -36,12 +53,18 @@ interface MinhaReceitaSocio {
   nome_socio?: string;
 }
 
+interface MinhaReceitaCnaeSecundario {
+  codigo?: number;
+  descricao?: string;
+}
+
 interface MinhaReceitaCompany {
   cnpj: string;
   razao_social?: string;
   nome_fantasia?: string | null;
   cnae_fiscal?: number;
   cnae_fiscal_descricao?: string;
+  cnaes_secundarios?: MinhaReceitaCnaeSecundario[];
   descricao_tipo_de_logradouro?: string;
   logradouro?: string;
   numero?: string;
@@ -101,13 +124,39 @@ function buildAddress(company: MinhaReceitaCompany): string | undefined {
   return parts.length > 0 ? parts.join(", ") : undefined;
 }
 
-function mapToResultItem(company: MinhaReceitaCompany): BusinessSearchResultItem {
+/**
+ * O parâmetro `cnae` da busca casa com o CNAE principal OU qualquer
+ * secundário da empresa (ver comentário no topo do arquivo). Quando o
+ * motivo do match foi um CNAE secundário — não o principal —, mostrar só
+ * `cnae_fiscal_descricao` na lista confundiria o usuário (ex.: buscar
+ * "restaurantes" e ver uma empresa cuja atividade principal é outra,
+ * sem indicar por que ela apareceu). Por isso, quando os códigos
+ * buscados não incluem o CNAE principal, usamos a descrição do CNAE
+ * secundário que efetivamente casou.
+ */
+function resolveMatchedCategory(company: MinhaReceitaCompany, searchedCnaeCodes?: string[]): string | undefined {
+  if (!searchedCnaeCodes || searchedCnaeCodes.length === 0) return company.cnae_fiscal_descricao;
+
+  const mainMatches = company.cnae_fiscal !== undefined && searchedCnaeCodes.includes(String(company.cnae_fiscal));
+  if (mainMatches || !company.cnae_fiscal_descricao) return company.cnae_fiscal_descricao;
+
+  const matchedSecundario = (company.cnaes_secundarios ?? []).find(
+    (secundario) => secundario.codigo !== undefined && searchedCnaeCodes.includes(String(secundario.codigo)),
+  );
+  if (matchedSecundario?.descricao) {
+    return `${matchedSecundario.descricao} (atividade secundária; principal: ${company.cnae_fiscal_descricao})`;
+  }
+
+  return company.cnae_fiscal_descricao;
+}
+
+function mapToResultItem(company: MinhaReceitaCompany, searchedCnaeCodes?: string[]): BusinessSearchResultItem {
   const now = new Date().toISOString();
   return {
     externalId: company.cnpj,
     provider: "minha_receita",
     name: company.nome_fantasia?.trim() || company.razao_social || company.cnpj,
-    category: company.cnae_fiscal_descricao,
+    category: resolveMatchedCategory(company, searchedCnaeCodes),
     address: buildAddress(company),
     phone: company.ddd_telefone_1 || undefined,
     website: undefined, // a Receita não tem este campo — ver limitação documentada em business-data-provider.ts
@@ -116,6 +165,9 @@ function mapToResultItem(company: MinhaReceitaCompany): BusinessSearchResultItem
       nomeFantasia: company.nome_fantasia,
       cnaeFiscal: company.cnae_fiscal,
       cnaeFiscalDescricao: company.cnae_fiscal_descricao,
+      cnaesSecundarios: (company.cnaes_secundarios ?? [])
+        .map((secundario) => secundario.descricao)
+        .filter((descricao): descricao is string => Boolean(descricao)),
       situacaoCadastral: company.descricao_situacao_cadastral,
       municipio: company.municipio,
       uf: company.uf,
@@ -208,7 +260,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
 
       for (const company of page.data ?? []) {
         if (cityFilter && normalizeForCompare(company.municipio ?? "") !== cityFilter) continue;
-        collected.push(mapToResultItem(company));
+        collected.push(mapToResultItem(company, query.cnaeCodes));
         if (collected.length >= MAX_RESULTS_PER_SEARCH) break;
       }
 
