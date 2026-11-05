@@ -79,6 +79,15 @@ export interface BusinessDataProvider {
   /** Identificador estável do provedor (ex.: `"google_places"`), usado em `company_source_refs.provider`. */
   readonly name: string;
   search(query: BusinessSearchQuery): Promise<BusinessSearchPage>;
+  /**
+   * Consulta direta por CNPJ específico (diferente de `search`, que é
+   * por filtros/segmento). Opcional no contrato: nem todo provedor
+   * oferece uma consulta direta por identificador (um provedor
+   * baseado em busca textual tipo Google Places, por exemplo, não
+   * teria isso). `null` quando o CNPJ é válido mas não foi encontrado
+   * na base do provedor — nunca lança nesse caso.
+   */
+  getByCnpj?(cnpj: string): Promise<BusinessSearchResultItem | null>;
 }
 
 export class ProviderNotConfiguredError extends Error {

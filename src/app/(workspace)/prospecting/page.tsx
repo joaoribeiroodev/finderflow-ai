@@ -5,7 +5,7 @@ import { Plus, Upload } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ProspectingSearchForm } from "@/components/prospecting/search-form";
+import { CnpjSearchForm, ProspectingSearchForm } from "@/components/prospecting/search-form";
 import { SearchHistoryPanel } from "@/components/prospecting/search-history";
 
 export const metadata: Metadata = { title: "Prospecção — FinderFlow AI" };
@@ -35,6 +35,10 @@ export default function ProspectingPage() {
 
       <Card>
         <ProspectingSearchForm />
+      </Card>
+
+      <Card>
+        <CnpjSearchForm />
       </Card>
 
       <Card>

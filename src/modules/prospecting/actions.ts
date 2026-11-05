@@ -14,6 +14,7 @@ import {
 } from "@/modules/companies/providers/business-data-provider";
 import { resolveSegmentToCnae } from "@/modules/companies/providers/cnae-resolver";
 import { getWebPresenceChecker } from "@/modules/companies/presence/get-web-presence-checker";
+import { formatCnpj, isValidCnpj, normalizeDocument } from "@/lib/utils/normalize";
 
 import { getSearchWithResults, listSearchHistory } from "./history.service";
 import { buildAttributionLabel } from "./shared";
@@ -185,6 +186,143 @@ export async function searchCompaniesAction(
       return { success: false, message: error.message };
     }
     return { success: false, message: "Não foi possível buscar empresas agora." };
+  }
+}
+
+/**
+ * Busca uma empresa específica por CNPJ (consulta direta, diferente da
+ * busca por segmento/UF) — pedido explícito do usuário. Mesmo
+ * tratamento de persistência da busca por segmento (`searches` +
+ * `search_results`), então entra automaticamente no histórico e pode
+ * ser exportada em XLSX como qualquer outra busca.
+ */
+export async function searchByCnpjAction(
+  _prev: SearchActionResult,
+  formData: FormData,
+): Promise<SearchActionResult> {
+  const cnpjInput = formData.get("cnpj");
+  if (typeof cnpjInput !== "string" || cnpjInput.trim().length === 0) {
+    return { success: false, message: "Informe um CNPJ." };
+  }
+
+  if (!isValidCnpj(cnpjInput)) {
+    return { success: false, message: "CNPJ inválido — confira os números e o dígito verificador." };
+  }
+
+  const digits = normalizeDocument(cnpjInput)!;
+  const formatted = formatCnpj(digits) ?? digits;
+
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, message: "Sessão expirada. Faça login novamente." };
+
+  try {
+    await assertCanEditOrganization(supabase, organizationId);
+  } catch (error) {
+    if (error instanceof PermissionError) return { success: false, message: error.message };
+    throw error;
+  }
+
+  const { data: search, error: insertError } = await supabase
+    .from("searches")
+    .insert({
+      organization_id: organizationId,
+      created_by: user.id,
+      query: `CNPJ ${formatted}`,
+      status: "queued",
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !search) {
+    return { success: false, message: "Não foi possível registrar a busca." };
+  }
+
+  try {
+    const provider = getBusinessDataProvider();
+    if (!provider.getByCnpj) {
+      await supabase.from("searches").update({ status: "failed" }).eq("id", search.id);
+      return {
+        success: false,
+        message: "O provedor de dados de empresas configurado não suporta consulta direta por CNPJ.",
+      };
+    }
+
+    const item = await provider.getByCnpj(digits);
+
+    if (!item) {
+      await supabase
+        .from("searches")
+        .update({ status: "completed", total_results: 0, providers: [provider.name], completed_at: new Date().toISOString() })
+        .eq("id", search.id);
+      return { success: true, results: [], searchId: search.id };
+    }
+
+    const { data: resultRow, error: resultError } = await supabase
+      .from("search_results")
+      .insert({
+        organization_id: organizationId,
+        search_id: search.id,
+        provider: item.provider,
+        external_id: item.externalId,
+        display_data: buildDisplayData(item) as Json,
+        attribution: item.attribution as Json,
+        fetched_at: item.fetchedAt,
+        expires_at: item.expiresAt ?? null,
+      })
+      .select("id")
+      .single();
+
+    await supabase
+      .from("searches")
+      .update({
+        status: "completed",
+        total_results: resultRow ? 1 : 0,
+        providers: [provider.name],
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", search.id);
+
+    if (resultError || !resultRow) {
+      logger.error("Falha ao persistir resultado de busca por CNPJ", {
+        error: resultError?.message,
+        organizationId,
+        searchId: search.id,
+      });
+      return { success: false, message: "Empresa encontrada, mas não foi possível salvar o resultado." };
+    }
+
+    return {
+      success: true,
+      searchId: search.id,
+      results: [
+        {
+          searchResultId: resultRow.id,
+          name: item.name,
+          category: item.category,
+          address: item.address,
+          phone: item.phone,
+          attributionLabel: buildAttributionLabel(item.attribution),
+          alreadyConverted: false,
+        },
+      ],
+    };
+  } catch (error) {
+    await supabase.from("searches").update({ status: "failed" }).eq("id", search.id);
+
+    if (error instanceof ProviderNotConfiguredError) {
+      return { success: false, providerNotConfigured: true, message: error.message };
+    }
+    logger.error("Falha ao buscar empresa por CNPJ", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      organizationId,
+      searchId: search.id,
+    });
+    return { success: false, message: "Não foi possível buscar este CNPJ agora." };
   }
 }
 

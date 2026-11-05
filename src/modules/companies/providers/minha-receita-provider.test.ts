@@ -129,6 +129,33 @@ describe("MinhaReceitaProvider", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("getByCnpj: consulta GET /<cnpj> (só dígitos) e mapeia o resultado", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(SAMPLE_COMPANY));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const item = await provider.getByCnpj("11.222.333/0001-81");
+
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://minhareceita.example/11222333000181");
+    expect(item).toMatchObject({ externalId: "11222333000181", name: "Empresa Teste" });
+  });
+
+  it("getByCnpj: devolve null em 404 (CNPJ não encontrado), sem lançar", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const item = await provider.getByCnpj("11222333000181");
+
+    expect(item).toBeNull();
+  });
+
+  it("getByCnpj: repete uma vez em 429 e lança erro claro se persistir", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    await expect(provider.getByCnpj("11222333000181")).rejects.toThrow(/Não foi possível consultar este CNPJ/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("segue o cursor devolvido e para quando não há mais páginas", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: [SAMPLE_COMPANY], cursor: "42" }))

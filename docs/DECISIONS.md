@@ -628,3 +628,29 @@ redeploy precisa ser disparado para ela valer.
 
 Testes: `history.service.test.ts` (6 casos) e `export.service.test.ts`
 (7 casos) — 208/208 testes passando no total.
+
+## Busca por CNPJ específico
+
+Pedido adicional do usuário, implementado junto com histórico/XLSX.
+Diferente da busca por segmento/UF (endpoint `GET /?uf=..&cnae=..`,
+"beta", paginada), o Minha Receita tem uma consulta direta por CNPJ
+(`GET /<cnpj>`, aceita com ou sem pontuação), reverificada contra
+`docs.minhareceita.org/como-usar/` nesta sessão: 200 com os dados da
+empresa, 404 com `{"message": "CNPJ ... não encontrado."}` quando não
+existe.
+
+- `BusinessDataProvider.getByCnpj?(cnpj)`: novo método **opcional** no
+  contrato (nem todo provedor futuro teria consulta direta por
+  identificador — ex.: Google Places não teria), retorna `null` em 404
+  em vez de lançar.
+- `MinhaReceitaProvider.getByCnpj`: implementado, reaproveita
+  `mapToResultItem` já existente.
+- `searchByCnpjAction` (nova Server Action): mesmo tratamento de
+  persistência da busca por segmento (`searches` + `search_results`) —
+  por isso uma busca por CNPJ também entra automaticamente no
+  histórico e pode ser exportada em XLSX, sem código extra.
+- UI: `CnpjSearchForm`, um formulário compacto separado na página de
+  prospecção.
+
+Testes: +3 casos em `minha-receita-provider.test.ts` (sucesso, 404 →
+null, 429 com retry e erro claro) — 211/211 testes passando no total.

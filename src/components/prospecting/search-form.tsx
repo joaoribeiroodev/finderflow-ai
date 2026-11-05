@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import {
   checkWebPresenceAction,
   convertSearchResultToCompanyAction,
+  searchByCnpjAction,
   searchCompaniesAction,
   type SearchActionResult,
   type SearchResultView,
@@ -221,6 +222,38 @@ export function ProspectingSearchForm() {
           resolvedSegmentLabel={state.resolvedSegmentLabel}
           searchId={state.searchId}
         />
+      ) : state.message ? (
+        <p role="alert" className="text-sm text-[var(--ff-danger)]">
+          {state.message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+const cnpjInitialState: SearchActionResult = { success: false };
+
+/** Consulta direta por CNPJ — diferente da busca por segmento/UF, traz uma única empresa já identificada. */
+export function CnpjSearchForm() {
+  const [state, formAction, isPending] = useActionState(searchByCnpjAction, cnpjInitialState);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <Field label="Buscar por CNPJ específico" name="cnpj" placeholder="00.000.000/0000-00" />
+        </div>
+        <Button type="submit" disabled={isPending} size="sm">
+          <Search className="mr-2 size-4" aria-hidden /> {isPending ? "Buscando..." : "Buscar CNPJ"}
+        </Button>
+      </form>
+
+      {state.success && state.results ? (
+        state.results.length === 0 ? (
+          <p className="text-sm text-[var(--ff-text-muted)]">CNPJ válido, mas não encontrado na base da Receita.</p>
+        ) : (
+          <SearchResultsList results={state.results} searchId={state.searchId} />
+        )
       ) : state.message ? (
         <p role="alert" className="text-sm text-[var(--ff-danger)]">
           {state.message}

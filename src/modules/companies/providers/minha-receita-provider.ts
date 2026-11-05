@@ -184,6 +184,44 @@ function mapToResultItem(company: MinhaReceitaCompany, searchedCnaeCodes?: strin
   };
 }
 
+/**
+ * Consulta direta por CNPJ (`GET /<cnpj>`, docs.minhareceita.org/como-usar/,
+ * reverificado nesta sessão 2026-11-05) — diferente do endpoint de busca
+ * por filtros (`GET /?uf=..&cnae=..`). Aceita CNPJ com ou sem pontuação;
+ * aqui sempre mandamos só os 14 dígitos. 404 com corpo
+ * `{"message": "CNPJ ... não encontrado."}` quando não existe —
+ * tratado como "não encontrado" (retorna `null`), não como erro.
+ */
+async function fetchByCnpj(baseUrl: string, cnpjDigits: string, attempt = 1): Promise<MinhaReceitaCompany | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${baseUrl}/${cnpjDigits}`, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+
+    if (response.status === 404) return null;
+
+    if (response.status === 429 || response.status >= 500) {
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        return fetchByCnpj(baseUrl, cnpjDigits, attempt + 1);
+      }
+      throw new Error(`Minha Receita respondeu ${response.status} após retry.`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Minha Receita respondeu ${response.status}.`);
+    }
+
+    return (await response.json()) as MinhaReceitaCompany;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchPage(
   baseUrl: string,
   params: URLSearchParams,
@@ -220,6 +258,26 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
   readonly name = "minha_receita";
 
   constructor(private readonly baseUrl: string) {}
+
+  /** CNPJ com ou sem pontuação, 14 dígitos — validação do dígito verificador é responsabilidade de quem chama. */
+  async getByCnpj(cnpj: string): Promise<BusinessSearchResultItem | null> {
+    const digits = cnpj.replace(/\D/g, "");
+
+    let company: MinhaReceitaCompany | null;
+    try {
+      company = await fetchByCnpj(this.baseUrl, digits);
+    } catch (error) {
+      logger.error("Falha ao consultar CNPJ no Minha Receita", {
+        provider: this.name,
+        error: error instanceof Error ? error.message : "erro desconhecido",
+      });
+      throw new Error(
+        "Não foi possível consultar este CNPJ agora (provedor de dados públicos de CNPJ indisponível). Tente novamente em alguns minutos.",
+      );
+    }
+
+    return company ? mapToResultItem(company) : null;
+  }
 
   async search(query: BusinessSearchQuery): Promise<BusinessSearchPage> {
     const state = decodePageToken(query.pageToken);
