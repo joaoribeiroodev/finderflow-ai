@@ -20,6 +20,8 @@ import { reconcileSubscriptions } from "@/modules/billing/reconcile.service";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
   const env = getServerEnv();
 
   if (!env.CRON_SECRET) {
@@ -28,6 +30,7 @@ export async function POST(request: Request) {
 
   const authHeader = request.headers.get("authorization");
   if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
+    logger.warn("Job de reconciliação de billing: tentativa não autorizada", { requestId });
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -36,9 +39,20 @@ export async function POST(request: Request) {
 
   try {
     const summary = await reconcileSubscriptions(admin, provider);
+    logger.info("Job de reconciliação de billing concluído", {
+      requestId,
+      endpoint: "/api/v1/jobs/billing-sync",
+      durationMs: Date.now() - startedAt,
+      status: "completed",
+      summary,
+    });
     return NextResponse.json({ summary });
   } catch (error) {
     logger.error("Falha no job de reconciliação de billing", {
+      requestId,
+      endpoint: "/api/v1/jobs/billing-sync",
+      durationMs: Date.now() - startedAt,
+      status: "failed",
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json({ error: "reconcile_failed" }, { status: 500 });

@@ -20,6 +20,8 @@ import { processAsaasWebhookEvent, verifyAsaasWebhookToken } from "@/modules/bil
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
   const env = getServerEnv();
 
   if (!isAsaasConfigured(env)) {
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
 
   const tokenHeader = request.headers.get("asaas-access-token");
   if (!verifyAsaasWebhookToken(tokenHeader, env.ASAAS_WEBHOOK_TOKEN!)) {
-    logger.warn("Webhook do Asaas recebido com token inválido ou ausente");
+    logger.warn("Webhook do Asaas recebido com token inválido ou ausente", { requestId });
     return NextResponse.json({ error: "invalid_token" }, { status: 401 });
   }
 
@@ -50,6 +52,24 @@ export async function POST(request: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- payload bruto do provedor externo, validado campo a campo dentro do service
   const outcome = await processAsaasWebhookEvent(admin, provider, payload as any);
+
+  // Nunca logar o payload bruto do webhook (pode conter dado financeiro
+  // do assinante) — só o identificador do evento e o resultado do
+  // processamento, que é exatamente o que docs/08-security-operations.md
+  // §8.5 pede para observabilidade ("evento de webhook e status de
+  // processamento").
+  const eventId =
+    typeof payload === "object" && payload !== null && "id" in payload
+      ? String((payload as { id?: unknown }).id)
+      : null;
+  logger.info("Webhook do Asaas processado", {
+    requestId,
+    endpoint: "/api/v1/webhooks/asaas",
+    eventId,
+    durationMs: Date.now() - startedAt,
+    status: outcome.reason,
+    httpStatus: outcome.httpStatus,
+  });
 
   return NextResponse.json({ status: outcome.reason }, { status: outcome.httpStatus });
 }

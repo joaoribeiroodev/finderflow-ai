@@ -40,7 +40,11 @@ export function SalesInsightsSection() {
       className="border-[#55347a] bg-[linear-gradient(100deg,#281743,#1b1430_60%,#201332)]"
     >
       <form action={formAction} className="mb-4 flex items-center gap-2">
+        <label className="sr-only" htmlFor="sales-insights-period">
+          Período da análise
+        </label>
         <select
+          id="sales-insights-period"
           name="period"
           value={period}
           onChange={(e) => setPeriod(e.target.value)}

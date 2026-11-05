@@ -2,9 +2,46 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getServerEnv } from "@/lib/env/env.server";
+import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
 import type { Database } from "@/types/database";
 
 const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/recovery", "/auth"];
+
+/**
+ * Rate limiting (fase 8, hardening) — best-effort em memória, ver
+ * src/lib/security/rate-limit.ts para a limitação conhecida em ambiente
+ * multi-instância. Limites deliberadamente generosos para não travar uso
+ * legítimo; o objetivo aqui é impedir abuso trivial de força bruta/flood,
+ * não ser uma defesa de produção completa (WAF/rate limiting de borda).
+ */
+const RATE_LIMITS: Array<{ test: (pathname: string, method: string) => boolean; limit: number; windowMs: number; label: string }> = [
+  {
+    // Login/registro/recuperação: força bruta de credenciais.
+    label: "auth",
+    test: (pathname, method) =>
+      method === "POST" && ["/login", "/register", "/recovery"].some((p) => pathname === p || pathname.startsWith(`${p}/`)),
+    limit: 10,
+    windowMs: 60_000,
+  },
+  {
+    // Webhook do Asaas: a entrega "at least once" pode reenviar o mesmo
+    // evento várias vezes em pouco tempo — limite alto, só para conter um
+    // flood anômalo, nunca para rejeitar retries legítimos.
+    label: "asaas-webhook",
+    test: (pathname, method) => method === "POST" && pathname === "/api/v1/webhooks/asaas",
+    limit: 120,
+    windowMs: 60_000,
+  },
+  {
+    // Job de reconciliação: só deveria ser chamado por um scheduler
+    // interno (protegido por CRON_SECRET) — nunca deveria passar de
+    // poucas chamadas por minuto.
+    label: "billing-sync-job",
+    test: (pathname, method) => method === "POST" && pathname === "/api/v1/jobs/billing-sync",
+    limit: 10,
+    windowMs: 60_000,
+  },
+];
 
 /**
  * Toda rota de API (`/api/**`) faz sua própria autenticação — sessão de
@@ -43,6 +80,24 @@ function isPublicPath(pathname: string): boolean {
  * revogadas/expiradas.
  */
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const method = request.method;
+
+  for (const rule of RATE_LIMITS) {
+    if (!rule.test(pathname, method)) continue;
+    const key = `${rule.label}:${clientIp(request)}`;
+    const result = checkRateLimit(key, rule.limit, rule.windowMs);
+    if (!result.allowed) {
+      return new NextResponse(JSON.stringify({ error: "too_many_requests" }), {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+        },
+      });
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const env = getServerEnv();
@@ -68,8 +123,6 @@ export async function updateSession(request: NextRequest) {
 
   const { data, error } = await supabase.auth.getClaims();
   const isAuthenticated = Boolean(data?.claims) && !error;
-
-  const pathname = request.nextUrl.pathname;
 
   if (!isAuthenticated && !isPublicPath(pathname)) {
     const redirectUrl = new URL("/login", request.url);

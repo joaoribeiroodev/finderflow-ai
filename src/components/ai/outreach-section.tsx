@@ -36,7 +36,11 @@ export function OutreachSection({ leadId }: { leadId: string }) {
 
       <form action={formAction} className="mb-4 flex items-center gap-2">
         <input type="hidden" name="leadId" value={leadId} />
+        <label className="sr-only" htmlFor="outreach-channel">
+          Canal da abordagem
+        </label>
         <select
+          id="outreach-channel"
           name="channel"
           value={channel}
           onChange={(e) => setChannel(e.target.value)}

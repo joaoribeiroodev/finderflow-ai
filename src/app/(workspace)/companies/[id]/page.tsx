@@ -64,7 +64,10 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Card>
           <CardHeader title="Dados de contato" />
-          <dl className="flex flex-col gap-3 text-sm">
+          {/* Não é uma lista de definições de fato (sem par termo/descrição
+              por item), por isso não usa <dl>/<dt>/<dd> — achado do axe-core
+              (definition-list) corrigido na Fase 8. */}
+          <div className="flex flex-col gap-3 text-sm">
             <div className="flex items-center gap-2">
               <Phone className="size-4 text-[var(--ff-text-muted)]" aria-hidden />
               <span className="text-[var(--ff-text-primary)]">{company.phone ?? "Não informado"}</span>
@@ -96,7 +99,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
                 </span>
               </div>
             ) : null}
-          </dl>
+          </div>
         </Card>
 
         <Card>

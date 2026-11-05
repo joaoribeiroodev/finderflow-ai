@@ -87,6 +87,22 @@ export async function runStructuredAI<T>(
     logger.error("Falha ao registrar uso de IA", { error: logError.message, organizationId });
   }
 
+  // Espelha no log estruturado (stdout) o mesmo evento já persistido em
+  // `ai_usage_events` — a tabela é a fonte de verdade para quota/billing,
+  // o log é para o pipeline de observabilidade (docs/08-security-
+  // operations.md §8.5 "tokens e custo IA").
+  logger.info("Chamada de IA concluída", {
+    organizationId,
+    operation: input.promptKey,
+    promptVersion: input.promptVersion,
+    model: result.model,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    estimatedCostUsd: estimatedCost,
+    durationMs: result.durationMs,
+    status: finalStatus,
+  });
+
   return { ...result, data: finalData, status: finalStatus, errorMessage };
 }
 
@@ -125,6 +141,18 @@ export async function runConversationTurn(
   if (logError) {
     logger.error("Falha ao registrar uso de IA (copilot)", { error: logError.message, organizationId });
   }
+
+  logger.info("Chamada de IA concluída (copilot)", {
+    organizationId,
+    operation: "copilot",
+    promptVersion: input.promptVersion,
+    model: result.model,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    estimatedCostUsd: estimatedCost,
+    durationMs: result.durationMs,
+    status: result.status,
+  });
 
   return result;
 }

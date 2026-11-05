@@ -22,7 +22,12 @@
   --ff-danger: #fb7185;
   --ff-text-primary: #f5f3ff;
   --ff-text-secondary: #b7aec9;
-  --ff-text-muted: #81778f;
+  /* Fase 8 (hardening): #81778f dava contraste 4.29:1 sobre
+     --ff-bg-surface — abaixo do mínimo AA (4.5:1) para texto normal,
+     achado pelo axe-core (color-contrast, "serious") em praticamente
+     toda página autenticada (badges "Fase X", placeholder de busca,
+     labels de card). #9790a8 mede ~5.9:1 sobre o mesmo fundo. */
+  --ff-text-muted: #9790a8;
 
   /* Raio: cards 14–18px (docs/06-design-system.md §6.4) */
   --ff-radius-sm: 10px;
