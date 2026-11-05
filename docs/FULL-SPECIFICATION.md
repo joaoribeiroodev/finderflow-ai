@@ -409,12 +409,19 @@ ASAAS_ENVIRONMENT=sandbox
 BUSINESS_PROVIDER=minha_receita
 BUSINESS_PROVIDER_API_KEY=
 BUSINESS_PROVIDER_BASE_URL=
+BRAVE_SEARCH_API_KEY=
 CRON_SECRET=
 ```
 
 Nota (atualizado após a Fase 8): `BUSINESS_PROVIDER=minha_receita` já
 integra um provedor real — ver `docs/DECISIONS.md` e
 `src/modules/companies/providers/`.
+
+Nota (pós-Fase 8, 2ª adição): `BRAVE_SEARCH_API_KEY` habilita a
+verificação de presença digital ("tem site próprio ou não" — o sinal
+central do produto) via Brave Search API, com botão manual por resultado
+em `src/modules/companies/presence/`. Não testada ao vivo nesta sessão
+(sem chave disponível); ver `docs/DECISIONS.md`.
 
 Nomes são uma proposta; conferir nomenclatura de chaves Supabase vigente e validar tudo com schema de ambiente. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ASAAS_API_KEY` e tokens de webhook são exclusivamente server-side.
 

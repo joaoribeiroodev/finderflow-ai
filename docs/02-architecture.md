@@ -187,6 +187,7 @@ ASAAS_ENVIRONMENT=sandbox
 BUSINESS_PROVIDER=minha_receita
 BUSINESS_PROVIDER_API_KEY=
 BUSINESS_PROVIDER_BASE_URL=
+BRAVE_SEARCH_API_KEY=
 CRON_SECRET=
 ```
 
@@ -194,6 +195,18 @@ CRON_SECRET=
 busca de empresas (base de CNPJ da Receita Federal via a API pública
 Minha Receita — minhareceita.org), sem exigir `BUSINESS_PROVIDER_API_KEY`
 (ver `docs/DECISIONS.md` e `src/modules/companies/providers/`).
+
+`BRAVE_SEARCH_API_KEY` habilita a verificação de presença digital (botão
+"Verificar site" por resultado de busca, em `src/modules/companies/presence/`):
+indica se a empresa encontrada parece ter site próprio ou não — o sinal
+central do produto, já que o objetivo é prospectar empresas sem presença
+digital. Sem a chave, a funcionalidade mostra um estado "não configurado"
+honesto em vez de falhar silenciosamente. Nível gratuito: 2.000
+requisições/mês. Ver `docs/DECISIONS.md` ("Verificação de presença
+digital") para a análise de alternativas (Bing descontinuada, Google
+Custom Search fechado para novos clientes) e a ressalva de que esta
+integração não foi testada ao vivo (só com testes unitários/fetch
+mockado).
 
 Nomes são uma proposta; conferir nomenclatura de chaves Supabase vigente e validar tudo com schema de ambiente. `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ASAAS_API_KEY` e tokens de webhook são exclusivamente server-side.
 

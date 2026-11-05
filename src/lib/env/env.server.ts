@@ -32,6 +32,8 @@ const serverEnvSchema = z.object({
   BUSINESS_PROVIDER_API_KEY: optionalString(z.string().min(1)),
   /** Só usado por `BUSINESS_PROVIDER=minha_receita`; permite apontar para uma instância auto-hospedada. */
   BUSINESS_PROVIDER_BASE_URL: optionalString(z.string().url()),
+  /** Verificação de presença digital (site próprio) por busca — ver src/modules/companies/presence/. */
+  BRAVE_SEARCH_API_KEY: optionalString(z.string().min(1)),
   CRON_SECRET: optionalString(z.string().min(1)),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
@@ -82,4 +84,9 @@ export function isAsaasConfigured(env: ServerEnv = getServerEnv()): boolean {
 export function isBusinessProviderConfigured(env: ServerEnv = getServerEnv()): boolean {
   if (env.BUSINESS_PROVIDER === "minha_receita") return true;
   return Boolean(env.BUSINESS_PROVIDER && env.BUSINESS_PROVIDER_API_KEY);
+}
+
+/** Indica se a verificação de presença digital (site próprio) está configurada. */
+export function isWebPresenceCheckerConfigured(env: ServerEnv = getServerEnv()): boolean {
+  return Boolean(env.BRAVE_SEARCH_API_KEY);
 }

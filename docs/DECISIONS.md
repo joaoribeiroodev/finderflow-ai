@@ -277,6 +277,121 @@ de fato implementado.
   validar o produto agora — fica como opção de escala futura,
   documentada no `BUSINESS_PROVIDER_BASE_URL`.
 
+## Verificação de presença digital (empresa tem site próprio ou não)
+
+### O requisito (dito pelo usuário, não inferido)
+
+> "Um assunto importante, a ideia do sistema é encontrar potenciais
+> clientes, então a busca deve trazer empresas/estabelecimentos que não
+> possuem sites registrados ou não teve nenhum site atribuído, por isso
+> o web scrapping é importante."
+
+Isso reformula o que "web scraping" significava até aqui. A decisão
+anterior (Minha Receita) já resolveu a *descoberta* de empresas por
+segmento/UF. O que faltava era o sinal central do produto: **identificar
+quais dessas empresas já encontradas não têm site próprio** — esse é o
+critério que transforma uma lista de empresas em uma lista de leads
+qualificados para um produto de presença digital. Não é um enriquecimento
+opcional; é a proposta de valor.
+
+### Por que não foi feito com Playwright/scraping do Google
+
+Já estava registrado antes neste documento (seção do provedor de
+empresas, "Detecção de presença na web") que raspar resultados de busca do
+Google **viola os Termos de Uso do Google** e não deveria ser
+implementado dessa forma, independentemente da motivação (aqui, o
+objetivo legítimo de encontrar leads). Essa restrição não mudou com a
+clarificação do usuário — ela só tornou mais urgente achar uma alternativa
+legítima que cumpra a mesma função.
+
+### Alternativas de API avaliadas
+
+- **Bing Web Search API**: **descontinuada/retirada em 11/08/2025.**
+  Não é uma opção viável para uma integração nova.
+- **Google Custom Search JSON API**: confirmado via documentação oficial
+  do Google (fetch direto) que está **fechada para novos clientes**, com
+  desativação completa anunciada para 01/01/2027. Não é uma opção viável
+  para uma integração nova.
+- **Brave Search API** (escolhida): API de busca web atual, compatível
+  com os Termos de Uso, uso comercial permitido. Nível gratuito: 2.000
+  requisições/mês. Pago: US$3/1.000 (Base) ou US$5/1.000 (Pro)
+  requisições. Endpoint `GET https://api.search.brave.com/res/v1/web/search`,
+  autenticação via header `X-Subscription-Token`, resposta JSON em
+  `web.results[]` com `title`/`url`/`description`. (As páginas de
+  documentação oficial da Brave retornaram bloqueadas para fetch direto
+  nesta sessão — `robots_disallowed`/`connect_rejected` — então o formato
+  exato da requisição/resposta foi confirmado contra uma implementação de
+  terceiros em código-fonte Rust publicada no docs.rs, não só memória.)
+
+### O que foi implementado
+
+- `src/modules/companies/presence/web-presence-checker.ts` — interface
+  `WebPresenceChecker` (`check(query): Promise<WebPresenceResult>`) e tipos
+  `WebPresenceQuery`/`WebPresenceResult`, desacoplados do provedor — o
+  mesmo padrão de abstração usado para `BusinessDataProvider`.
+- `src/modules/companies/presence/non-owned-domains.ts` — lista de ~45
+  domínios que **não** são o site próprio de uma empresa mesmo quando
+  aparecem nos resultados de busca: redes sociais (Instagram, Facebook,
+  LinkedIn, TikTok), diretórios de CNPJ (cnpj.biz, cnpj.info, etc.),
+  marketplaces (Mercado Livre, OLX), portais de notícia e páginas
+  `gov.br`. Trata sufixos compostos de domínio brasileiro (`.com.br`,
+  `.org.br`) corretamente.
+- `src/modules/companies/presence/brave-web-presence-checker.ts` —
+  implementação concreta: monta a query (nome + cidade + UF), busca na
+  Brave Search API, filtra domínios não-próprios, e aplica um casamento de
+  nome por **sobreposição de tokens** (`nameOverlap >= 0.4`) entre o nome
+  da empresa e o título/domínio do resultado — para não confundir um
+  resultado de nome totalmente diferente com o site da empresa.
+- Botão "Verificar site" **manual, por resultado individual** de busca
+  (nunca automático para toda a lista) em `search-form.tsx` — mesmo padrão
+  já usado no Lead Scorer, Company Analyzer e Outreach Generator: qualquer
+  funcionalidade que consome cota de API paga é acionada item a item, para
+  o usuário não esgotar o nível gratuito (2.000 req/mês) em poucas buscas
+  sem querer.
+- `checkWebPresenceAction` em `prospecting/actions.ts` persiste o
+  resultado em `search_results.display_data.webPresence` — não cria
+  colunas novas, reaproveita o campo JSON já existente para dados exibidos
+  sem schema fixo.
+- Sem `BRAVE_SEARCH_API_KEY` configurada, `getWebPresenceChecker()` retorna
+  `null` e a action devolve um estado explícito de "não configurado" — a
+  UI mostra isso honestamente, sem fingir que a verificação rodou.
+
+### O sinal é um indício, não uma certeza
+
+A UI e os textos internos devem sempre dizer "sem site identificado" —
+nunca "não tem site". Dois tipos de erro são possíveis e esperados:
+
+- **Falso negativo**: a empresa tem site, mas ele está mal indexado, usa
+  um nome de domínio muito diferente do nome fantasia, ou não aparece nas
+  primeiras posições da busca.
+- **Falso positivo**: existe um site de nome parecido que não pertence à
+  empresa (duas empresas com nomes similares em cidades diferentes, por
+  exemplo).
+
+Por isso esse resultado nunca deve, por si só, decidir automaticamente
+nada (como excluir a empresa de uma lista) — é só um indicador que o
+usuário vê e usa com julgamento próprio.
+
+### O que NÃO foi feito / limitação honesta desta sessão
+
+**Esta integração não foi testada ao vivo contra a API real da Brave.**
+Não havia uma `BRAVE_SEARCH_API_KEY` disponível neste ambiente para obter
+uma. A implementação foi validada apenas com testes unitários que
+simulam (`mock`) a resposta HTTP (`brave-web-presence-checker.test.ts`,
+6 casos — incluindo resposta vazia, resultados só de redes sociais, nome
+parecido mas domínio não-próprio, nome diferente, e erro 5xx da API) e
+`non-owned-domains.test.ts` (4 casos). Os testes de tipo (`tsc`), lint
+(`eslint`) e build (`next build`) passaram, mas isso confirma que o
+código está correto *sintaticamente e logicamente diante dos casos
+imaginados* — não que o endpoint real da Brave se comporta exatamente
+como a implementação de terceiros usada como referência sugere. Para
+ativar a funcionalidade de verdade, o usuário precisa criar uma conta na
+Brave Search API (https://brave.com/search/api/), obter uma chave (nível
+gratuito cobre 2.000 verificações/mês) e preencher
+`BRAVE_SEARCH_API_KEY` em `.env.local`/nas variáveis de ambiente de
+produção. Só depois disso o botão "Verificar site" pode ser considerado
+testado com dados reais.
+
 ## Pendência conhecida: `SUPABASE_SERVICE_ROLE_KEY`
 
 Nenhuma ferramenta MCP do Supabase disponível nesta sessão retorna a

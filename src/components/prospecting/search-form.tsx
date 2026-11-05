@@ -2,12 +2,13 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Search } from "lucide-react";
+import { Check, Globe, GlobeLock, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { ErrorState } from "@/components/ui/error-state";
 import {
+  checkWebPresenceAction,
   convertSearchResultToCompanyAction,
   searchCompaniesAction,
   type SearchActionResult,
@@ -16,10 +17,54 @@ import {
 
 const initialState: SearchActionResult = { success: false };
 
+type WebPresenceState =
+  | { status: "unchecked" }
+  | { status: "checking" }
+  | { status: "has_website"; url?: string }
+  | { status: "no_website" }
+  | { status: "not_configured" }
+  | { status: "error"; message: string };
+
+function WebPresenceBadge({ state }: { state: WebPresenceState }) {
+  if (state.status === "no_website") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ff-success)]">
+        <GlobeLock className="size-3.5" aria-hidden /> Sem site identificado — oportunidade de contato
+      </span>
+    );
+  }
+  if (state.status === "has_website") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-[var(--ff-text-muted)]">
+        <Globe className="size-3.5" aria-hidden />
+        {state.url ? `Site encontrado: ${state.url}` : "Site encontrado"}
+      </span>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <span role="alert" className="text-xs text-[var(--ff-danger)]">
+        {state.message}
+      </span>
+    );
+  }
+  if (state.status === "not_configured") {
+    return (
+      <span className="text-xs text-[var(--ff-text-muted)]">
+        Verificação de site não configurada (defina BRAVE_SEARCH_API_KEY).
+      </span>
+    );
+  }
+  return null;
+}
+
 function ResultRow({ result }: { result: SearchResultView }) {
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState<"idle" | "converted" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+
+  const [isCheckingPresence, startPresenceTransition] = useTransition();
+  const [presence, setPresence] = useState<WebPresenceState>({ status: "unchecked" });
 
   function handleConvert() {
     startTransition(async () => {
@@ -33,6 +78,21 @@ function ResultRow({ result }: { result: SearchResultView }) {
     });
   }
 
+  function handleCheckPresence() {
+    startPresenceTransition(async () => {
+      const outcome = await checkWebPresenceAction(result.searchResultId);
+      if (outcome.checkerNotConfigured) {
+        setPresence({ status: "not_configured" });
+      } else if (!outcome.success) {
+        setPresence({ status: "error", message: outcome.message ?? "Não foi possível verificar o site." });
+      } else if (outcome.hasWebsite) {
+        setPresence({ status: "has_website", url: outcome.websiteUrl });
+      } else {
+        setPresence({ status: "no_website" });
+      }
+    });
+  }
+
   return (
     <li className="flex flex-col gap-2 border-b border-[var(--ff-border-subtle)] py-3 last:border-0 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex flex-col gap-0.5">
@@ -41,13 +101,14 @@ function ResultRow({ result }: { result: SearchResultView }) {
         {result.address ? <p className="text-xs text-[var(--ff-text-muted)]">{result.address}</p> : null}
         {result.phone ? <p className="text-xs text-[var(--ff-text-muted)]">{result.phone}</p> : null}
         <p className="text-xs text-[var(--ff-text-muted)]">{result.attributionLabel}</p>
+        <WebPresenceBadge state={presence} />
         {status === "error" && message ? (
           <p role="alert" className="text-xs text-[var(--ff-danger)]">
             {message}
           </p>
         ) : null}
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
         {status === "converted" ? (
           <span className="inline-flex items-center gap-1 text-sm text-[var(--ff-success)]">
             <Check className="size-4" aria-hidden /> Cadastrada
@@ -57,6 +118,11 @@ function ResultRow({ result }: { result: SearchResultView }) {
             {isPending ? "Cadastrando..." : "Adicionar como empresa"}
           </Button>
         )}
+        {presence.status === "unchecked" || presence.status === "checking" ? (
+          <Button size="sm" variant="ghost" disabled={isCheckingPresence} onClick={handleCheckPresence}>
+            {isCheckingPresence ? "Verificando..." : "Verificar site"}
+          </Button>
+        ) : null}
       </div>
     </li>
   );

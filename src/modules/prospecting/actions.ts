@@ -13,6 +13,7 @@ import {
   type BusinessSearchResultItem,
 } from "@/modules/companies/providers/business-data-provider";
 import { resolveSegmentToCnae } from "@/modules/companies/providers/cnae-resolver";
+import { getWebPresenceChecker } from "@/modules/companies/presence/get-web-presence-checker";
 
 export interface SearchResultView {
   searchResultId: string;
@@ -264,5 +265,75 @@ export async function convertSearchResultToCompanyAction(
       searchResultId,
     });
     return { success: false, message: "Não foi possível cadastrar esta empresa agora." };
+  }
+}
+
+export interface CheckWebPresenceActionState {
+  success: boolean;
+  message?: string;
+  checkerNotConfigured?: boolean;
+  hasWebsite?: boolean;
+  websiteUrl?: string;
+}
+
+/**
+ * Verifica (via `WebPresenceChecker`, ver `modules/companies/presence/`)
+ * se a empresa de um resultado de busca aparenta ter site próprio — o
+ * sinal central de prospecção do FinderFlow AI. Ação manual por
+ * resultado, de propósito: cada chamada consome a cota da API de busca
+ * usada, então nunca é disparada automaticamente para uma lista inteira
+ * (ver o comentário em `brave-web-presence-checker.ts`).
+ */
+export async function checkWebPresenceAction(searchResultId: string): Promise<CheckWebPresenceActionState> {
+  const checker = getWebPresenceChecker();
+  if (!checker) {
+    return {
+      success: false,
+      checkerNotConfigured: true,
+      message: "Verificação de presença digital não configurada (defina BRAVE_SEARCH_API_KEY).",
+    };
+  }
+
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  const { data: resultRow, error: fetchError } = await supabase
+    .from("search_results")
+    .select("display_data")
+    .eq("organization_id", organizationId)
+    .eq("id", searchResultId)
+    .maybeSingle();
+
+  if (fetchError || !resultRow) {
+    return { success: false, message: "Resultado de busca não encontrado." };
+  }
+
+  const displayData = (resultRow.display_data ?? {}) as Record<string, unknown>;
+  const raw = (displayData.raw ?? {}) as Record<string, unknown>;
+  const companyName = typeof displayData.name === "string" ? displayData.name : null;
+  if (!companyName) {
+    return { success: false, message: "Este resultado não tem nome suficiente para verificar." };
+  }
+
+  try {
+    const presence = await checker.check({
+      companyName,
+      city: typeof raw.municipio === "string" ? raw.municipio : undefined,
+      state: typeof raw.uf === "string" ? raw.uf : undefined,
+    });
+
+    await supabase
+      .from("search_results")
+      .update({ display_data: { ...displayData, webPresence: presence } as unknown as Json })
+      .eq("id", searchResultId);
+
+    return { success: true, hasWebsite: presence.hasWebsite, websiteUrl: presence.websiteUrl };
+  } catch (error) {
+    logger.error("Falha ao verificar presença digital", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      organizationId,
+      searchResultId,
+    });
+    return { success: false, message: "Não foi possível verificar a presença digital agora." };
   }
 }
