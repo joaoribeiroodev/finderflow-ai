@@ -15,6 +15,9 @@ import {
 import { resolveSegmentToCnae } from "@/modules/companies/providers/cnae-resolver";
 import { getWebPresenceChecker } from "@/modules/companies/presence/get-web-presence-checker";
 
+import { getSearchWithResults, listSearchHistory } from "./history.service";
+import { buildAttributionLabel } from "./shared";
+
 export interface SearchResultView {
   searchResultId: string;
   name: string;
@@ -23,6 +26,14 @@ export interface SearchResultView {
   phone?: string;
   attributionLabel: string;
   alreadyConverted: boolean;
+  /**
+   * Presença digital já verificada e salva anteriormente (ver
+   * `checkWebPresenceAction`, que persiste em `display_data.webPresence`).
+   * Permite à UI mostrar o resultado já conhecido sem precisar clicar em
+   * "Verificar site" de novo — sobretudo importante ao reabrir uma busca
+   * do histórico (`history.service.ts`).
+   */
+  cachedWebPresence?: { hasWebsite: boolean; websiteUrl?: string };
 }
 
 export interface SearchActionResult {
@@ -31,13 +42,8 @@ export interface SearchActionResult {
   providerNotConfigured?: boolean;
   results?: SearchResultView[];
   resolvedSegmentLabel?: string | null;
-}
-
-function buildAttributionLabel(attribution: Record<string, unknown>): string {
-  const source = typeof attribution.source === "string" ? attribution.source : undefined;
-  const via = typeof attribution.via === "string" ? attribution.via : undefined;
-  if (source && via) return `Dados: ${source} (via ${via})`;
-  return source ?? via ?? "Dados de provedor externo";
+  /** Para montar o link de exportação em XLSX (`/api/v1/search-results/:searchId/export`) sem nova busca. */
+  searchId?: string;
 }
 
 /**
@@ -163,7 +169,12 @@ export async function searchCompaniesAction(
       })
       .eq("id", search.id);
 
-    return { success: true, results: resultViews, resolvedSegmentLabel: segmentResolution.matchedLabel };
+    return {
+      success: true,
+      results: resultViews,
+      resolvedSegmentLabel: segmentResolution.matchedLabel,
+      searchId: search.id,
+    };
   } catch (error) {
     await supabase.from("searches").update({ status: "failed" }).eq("id", search.id);
 
@@ -335,5 +346,104 @@ export async function checkWebPresenceAction(searchResultId: string): Promise<Ch
       searchResultId,
     });
     return { success: false, message: "Não foi possível verificar a presença digital agora." };
+  }
+}
+
+export interface SearchHistoryEntryView {
+  searchId: string;
+  query: string;
+  segment: string | null;
+  city: string | null;
+  state: string | null;
+  status: string;
+  totalResults: number;
+  createdAt: string;
+}
+
+export interface SearchHistoryActionResult {
+  success: boolean;
+  message?: string;
+  entries?: SearchHistoryEntryView[];
+  page?: number;
+  pageSize?: number;
+  total?: number;
+}
+
+/** Lista as buscas já feitas pela organização — nunca consulta o provedor externo. */
+export async function listSearchHistoryAction(page = 1): Promise<SearchHistoryActionResult> {
+  const supabase = await createClient();
+
+  try {
+    const { organizationId } = await requireActiveOrganization();
+    const { searches, total, pageSize } = await listSearchHistory(supabase, organizationId, page);
+
+    return {
+      success: true,
+      page,
+      pageSize,
+      total,
+      entries: searches.map((row) => ({
+        searchId: row.id,
+        query: row.query,
+        segment: row.segment,
+        city: row.city,
+        state: row.state,
+        status: row.status,
+        totalResults: row.total_results,
+        createdAt: row.created_at,
+      })),
+    };
+  } catch (error) {
+    logger.error("Falha ao listar histórico de buscas", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+    });
+    return { success: false, message: "Não foi possível carregar o histórico de buscas." };
+  }
+}
+
+export interface ReopenSearchActionResult {
+  success: boolean;
+  message?: string;
+  entry?: SearchHistoryEntryView;
+  results?: SearchResultView[];
+}
+
+/**
+ * Reabre uma busca do histórico: devolve os resultados exatamente como
+ * foram salvos na hora, **sem gastar nenhuma requisição nova ao
+ * provedor** — o pedido explícito do usuário ("voltar para última
+ * busca sem precisar realizar uma nova, gastando requisições").
+ */
+export async function reopenSearchAction(searchId: string): Promise<ReopenSearchActionResult> {
+  const supabase = await createClient();
+
+  try {
+    const { organizationId } = await requireActiveOrganization();
+    const found = await getSearchWithResults(supabase, organizationId, searchId);
+
+    if (!found) {
+      return { success: false, message: "Busca não encontrada." };
+    }
+
+    return {
+      success: true,
+      entry: {
+        searchId: found.search.id,
+        query: found.search.query,
+        segment: found.search.segment,
+        city: found.search.city,
+        state: found.search.state,
+        status: found.search.status,
+        totalResults: found.search.total_results,
+        createdAt: found.search.created_at,
+      },
+      results: found.results,
+    };
+  } catch (error) {
+    logger.error("Falha ao reabrir busca do histórico", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      searchId,
+    });
+    return { success: false, message: "Não foi possível carregar esta busca." };
   }
 }

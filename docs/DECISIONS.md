@@ -569,3 +569,62 @@ pendentes.
 Testes: `domain-candidates.test.ts` (4 casos) e
 `domain-probe-web-presence-checker.test.ts` (6 casos) — 195/195 testes
 passando no total.
+
+## Histórico de busca e exportação em XLSX
+
+Implementado o restante do pedido original do usuário (busca por
+empresas com histórico e exportação em XLSX), que ficou pendente desde
+a discussão sobre scraping/presença digital.
+
+**Histórico de busca**: as tabelas `searches`/`search_results` já
+existiam desde a Fase 3 (toda busca já era persistida — nunca se perdia
+ao recarregar a página), mas não havia nenhuma forma de listar buscas
+passadas ou reabri-las. Adicionado:
+- `src/modules/prospecting/history.service.ts`: `listSearchHistory`
+  (lista paginada, mais recentes primeiro) e `getSearchWithResults`
+  (reconstrói os resultados de uma busca salva **sem nenhuma chamada ao
+  provedor externo** — só lê `search_results`, exatamente o pedido do
+  usuário: "voltar para última busca sem precisar realizar uma nova,
+  gastando requisições").
+- Novas Server Actions em `actions.ts`: `listSearchHistoryAction`,
+  `reopenSearchAction`.
+- UI: `SearchHistoryPanel` (`search-history.tsx`), listado na página de
+  prospecção abaixo do formulário de busca.
+- Melhoria adicional: a verificação de presença digital já era salva em
+  `search_results.display_data.webPresence` (desde a Fase anterior),
+  mas a UI nunca lia esse valor de volta — toda busca reaberta mostrava
+  "Verificar site" do zero, mesmo já tendo sido verificado. Corrigido:
+  `SearchResultView` agora carrega `cachedWebPresence`, e `ResultRow`
+  inicializa o badge a partir dele.
+
+**Exportação em XLSX**: avaliado `xlsx` (SheetJS) via npm antes de
+integrar — tem uma vulnerabilidade de severidade **alta** sem correção
+no registro npm (prototype pollution + ReDoS; a SheetJS só publica a
+versão corrigida no CDN próprio, fora do registro padrão). Descartado
+por esse motivo. Usado `exceljs` em vez disso (mantido ativamente, sem
+vulnerabilidades diretas — só um aviso `moderate` transitivo via `uuid`
+que não se aplica ao nosso uso).
+- `src/modules/prospecting/export.service.ts`: `exportSearchResultsToXlsx`
+  lê os `search_results` já salvos (mesma fonte do histórico — também
+  não gasta requisição nova) e gera o `.xlsx` com `exceljs`.
+- Rota `GET /api/v1/search-results/[searchId]/export`: autenticada por
+  sessão + RLS (não por token separado — é uma ação do usuário logado,
+  diferente dos webhooks que usam `CRON_SECRET`).
+- Botão "Exportar XLSX" adicionado em `SearchResultsList` (componente
+  extraído de `search-form.tsx`, reaproveitado tanto pela busca em
+  tempo real quanto pelo histórico reaberto).
+
+**Preparação para receber chaves pendentes a qualquer momento**
+(`SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `ASAAS_*`): confirmado
+que a arquitetura já trata essas chaves como opcionais e "lazy" — nunca
+lidas no boot da aplicação (`getServerEnv()` não as exige), só no
+momento em que a feature correspondente é efetivamente usada
+(`createAdminClient()`, `getAIProvider()`, `getAsaasProvider()`), cada
+uma com um estado "não configurado" honesto na UI em vez de quebrar.
+Nenhuma mudança de código foi necessária. Única ressalva real (fora do
+código, da própria Vercel): uma env var nova só é aplicada a partir do
+próximo deploy — por isso, sempre que uma chave for adicionada, um
+redeploy precisa ser disparado para ela valer.
+
+Testes: `history.service.test.ts` (6 casos) e `export.service.test.ts`
+(7 casos) — 208/208 testes passando no total.

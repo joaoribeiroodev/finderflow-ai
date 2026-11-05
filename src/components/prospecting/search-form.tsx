@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Globe, GlobeLock, Search } from "lucide-react";
+import { Check, Download, Globe, GlobeLock, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -58,13 +58,22 @@ function WebPresenceBadge({ state }: { state: WebPresenceState }) {
   return null;
 }
 
+function initialPresenceState(result: SearchResultView): WebPresenceState {
+  if (!result.cachedWebPresence) return { status: "unchecked" };
+  return result.cachedWebPresence.hasWebsite
+    ? { status: "has_website", url: result.cachedWebPresence.websiteUrl }
+    : { status: "no_website" };
+}
+
 function ResultRow({ result }: { result: SearchResultView }) {
   const [isPending, startTransition] = useTransition();
-  const [status, setStatus] = useState<"idle" | "converted" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "converted" | "error">(
+    result.alreadyConverted ? "converted" : "idle",
+  );
   const [message, setMessage] = useState<string | null>(null);
 
   const [isCheckingPresence, startPresenceTransition] = useTransition();
-  const [presence, setPresence] = useState<WebPresenceState>({ status: "unchecked" });
+  const [presence, setPresence] = useState<WebPresenceState>(() => initialPresenceState(result));
 
   function handleConvert() {
     startTransition(async () => {
@@ -128,6 +137,53 @@ function ResultRow({ result }: { result: SearchResultView }) {
   );
 }
 
+/**
+ * Lista de resultados reaproveitada pela busca em tempo real
+ * (`ProspectingSearchForm`) e pelo histórico reaberto
+ * (`SearchHistoryPanel`) — mesma renderização, mesmas ações (converter,
+ * verificar site), e o mesmo link de exportação em XLSX quando há um
+ * `searchId` (sempre há, tanto numa busca nova quanto numa reaberta).
+ */
+export function SearchResultsList({
+  results,
+  resolvedSegmentLabel,
+  searchId,
+}: {
+  results: SearchResultView[];
+  resolvedSegmentLabel?: string | null;
+  searchId?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--ff-text-muted)]">
+          {resolvedSegmentLabel ? `Segmento reconhecido: ${resolvedSegmentLabel}. ` : ""}
+          {results.length} resultado{results.length === 1 ? "" : "s"} encontrado
+          {results.length === 1 ? "" : "s"}.
+        </p>
+        {searchId && results.length > 0 ? (
+          <a href={`/api/v1/search-results/${searchId}/export`} download>
+            <Button size="sm" variant="secondary">
+              <Download className="mr-2 size-4" aria-hidden /> Exportar XLSX
+            </Button>
+          </a>
+        ) : null}
+      </div>
+      {results.length === 0 ? (
+        <p className="text-sm text-[var(--ff-text-muted)]">
+          Nenhuma empresa encontrada com esses filtros. Tente um segmento diferente ou só por UF.
+        </p>
+      ) : (
+        <ul>
+          {results.map((result) => (
+            <ResultRow key={result.searchResultId} result={result} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function ProspectingSearchForm() {
   const [state, formAction, isPending] = useActionState(searchCompaniesAction, initialState);
 
@@ -160,24 +216,11 @@ export function ProspectingSearchForm() {
           }
         />
       ) : state.success && state.results ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-[var(--ff-text-muted)]">
-            {state.resolvedSegmentLabel ? `Segmento reconhecido: ${state.resolvedSegmentLabel}. ` : ""}
-            {state.results.length} resultado{state.results.length === 1 ? "" : "s"} encontrado
-            {state.results.length === 1 ? "" : "s"}.
-          </p>
-          {state.results.length === 0 ? (
-            <p className="text-sm text-[var(--ff-text-muted)]">
-              Nenhuma empresa encontrada com esses filtros. Tente um segmento diferente ou só por UF.
-            </p>
-          ) : (
-            <ul>
-              {state.results.map((result) => (
-                <ResultRow key={result.searchResultId} result={result} />
-              ))}
-            </ul>
-          )}
-        </div>
+        <SearchResultsList
+          results={state.results}
+          resolvedSegmentLabel={state.resolvedSegmentLabel}
+          searchId={state.searchId}
+        />
       ) : state.message ? (
         <p role="alert" className="text-sm text-[var(--ff-danger)]">
           {state.message}
