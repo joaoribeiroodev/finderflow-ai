@@ -50,17 +50,17 @@ export default async function PipelinePage({
       {stages.length === 0 ? (
         <EmptyState icon={KanbanSquare} title="Nenhuma etapa configurada" />
       ) : (
-        <div className="-mx-1 flex gap-4 overflow-x-auto pb-2">
+        <div className="-mx-1 flex gap-3 overflow-x-auto pb-3">
           {stages.map((stage) => {
             const stageLeads = leadsByStage.get(stage.id) ?? [];
             return (
-              <div key={stage.id} className="flex w-72 flex-none flex-col gap-3">
+              <div key={stage.id} className="flex w-64 flex-none flex-col gap-3 first:w-80 last:w-56">
                 <div className="flex items-center gap-2 px-1">
                   <span className="size-2.5 rounded-full" style={{ backgroundColor: stage.color }} aria-hidden />
                   <h2 className="font-semibold text-[var(--ff-text-primary)]">{stage.name}</h2>
                   <span className="text-xs text-[var(--ff-text-muted)]">{stageLeads.length}</span>
                 </div>
-                <div className="flex flex-col gap-2.5 rounded-[var(--ff-radius-lg)] border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-elevated)]/40 p-2.5 min-h-24">
+                <div className="min-h-24 flex flex-col gap-2.5 border-t-2 border-[var(--ff-brass)] bg-[var(--ff-bg-elevated)]/55 p-2.5">
                   {stageLeads.length === 0 ? (
                     <p className="px-1 text-xs text-[var(--ff-text-muted)]">Nenhum lead nesta etapa.</p>
                   ) : (

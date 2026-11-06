@@ -45,7 +45,7 @@ export default async function CompaniesPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Prospecção"
         title="Empresas"
@@ -128,7 +128,7 @@ export default async function CompaniesPage({
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--ff-border-subtle)] text-xs text-[var(--ff-text-muted)] uppercase">
-                <th className="px-5 py-3 font-medium">Nome</th>
+                <th className="w-2/5 border-r border-[var(--ff-border-subtle)] px-5 py-3 font-medium">Selo / empresa</th>
                 <th className="px-5 py-3 font-medium">CNPJ</th>
                 <th className="px-5 py-3 font-medium">Categoria</th>
                 <th className="px-5 py-3 font-medium">Origem</th>
@@ -138,7 +138,8 @@ export default async function CompaniesPage({
             <tbody className="divide-y divide-[#2d243c]">
               {companies.map((company) => (
                 <tr key={company.id} className="hover:bg-[var(--ff-bg-elevated)]/60">
-                  <td className="px-5 py-3">
+                  <td className="border-r border-[var(--ff-border-subtle)] px-5 py-3">
+                    <span className="mr-3 inline-block size-2 rounded-full bg-[var(--ff-brass)]" aria-hidden />
                     <Link
                       href={`/companies/${company.id}`}
                       className="font-medium text-[var(--ff-text-primary)] hover:text-[var(--ff-violet-glow)]"

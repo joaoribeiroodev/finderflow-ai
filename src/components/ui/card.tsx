@@ -3,17 +3,16 @@ import { type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Card base do design system (docs/06-design-system.md §6.2/§6.4):
- * gradiente sutil, borda discreta, raio 14–18px, sombra suave. Usado como
- * base por `KpiCard`, `ChartCard` e seções de conteúdo soltas.
+ * Superfície de arquivo: uma folha elevada do dossiê, sem o tratamento
+ * uniforme de card SaaS. Componentes específicos podem optar por linhas e
+ * divisores para ganhar densidade de registro.
  */
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-[var(--ff-radius-lg)] border border-[var(--ff-border-subtle)]",
-        "bg-[linear-gradient(150deg,rgba(30,24,48,0.94),rgba(20,16,33,0.97))]",
-        "[box-shadow:var(--ff-shadow-card)] p-5",
+        "rounded-[var(--ff-radius-md)] border border-[var(--ff-border-subtle)]",
+        "bg-[var(--ff-bg-surface)] [box-shadow:var(--ff-shadow-card)] p-5",
         className,
       )}
       {...props}

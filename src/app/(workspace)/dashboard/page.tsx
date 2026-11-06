@@ -29,7 +29,8 @@ export default async function DashboardPage() {
   const maxOriginCount = Math.max(1, ...breakdown.origins.map((s) => s.count));
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
+      <div className="border-b border-[var(--ff-border-subtle)] pb-5">
       <PageHeader
         eyebrow="Seu painel de crescimento"
         title={
@@ -40,16 +41,19 @@ export default async function DashboardPage() {
         }
         subtitle="Aqui está o resumo real da sua operação comercial nesta organização."
       />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="border-l-2 border-[var(--ff-brass)] bg-[var(--ff-bg-surface)] px-5 py-6 sm:px-8">
+        <p className="mb-2 text-sm text-[var(--ff-text-muted)]">Valor ponderado em negociação</p>
+        <p className="font-serif text-4xl tracking-tight text-[var(--ff-brass-soft)] sm:text-6xl">{formatBRL(data.weightedPipelineValue)}</p>
+        <p className="mt-2 text-sm text-[var(--ff-text-secondary)]">O registro financeiro estimado do pipeline ativo.</p>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="Empresas cadastradas" value={data.companiesCount.toLocaleString("pt-BR")} icon={Building2} />
         <KpiCard label="Leads ativos" value={data.activeLeadsCount.toLocaleString("pt-BR")} icon={Rows3} />
         <KpiCard label="Propostas enviadas" value={data.proposalsSentCount.toLocaleString("pt-BR")} icon={FileText} />
-        <KpiCard
-          label="Pipeline ponderado"
-          value={formatBRL(data.weightedPipelineValue)}
-          icon={Sparkles}
-        />
+        <KpiCard label="Propostas enviadas" value={data.proposalsSentCount.toLocaleString("pt-BR")} icon={FileText} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
