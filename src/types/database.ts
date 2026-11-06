@@ -1714,6 +1714,30 @@ export type Database = {
           },
         ]
       }
+      system_error_logs: {
+        Row: {
+          context: Json
+          created_at: string
+          id: string
+          level: string
+          message: string
+        }
+        Insert: {
+          context?: Json
+          created_at?: string
+          id?: string
+          level: string
+          message: string
+        }
+        Update: {
+          context?: Json
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -2081,14 +2105,6 @@ export const Constants = {
   },
 } as const
 
-/**
- * Aliases de conveniência usados pelos módulos de domínio
- * (src/modules/organizations, src/lib/permissions). `OrgRole` é extraído
- * diretamente do enum `org_role` gerado acima para nunca divergir do banco.
- * `MemberStatus` não é um enum do Postgres (coluna `status` é `text` com
- * check constraint em organization_members), por isso é mantido manualmente —
- * atualizar se a constraint mudar.
- */
 export type OrgRole = Database["public"]["Enums"]["org_role"]
 export type MemberStatus = "invited" | "active" | "suspended"
 export type ApprovalStatus = "pending" | "approved" | "rejected"

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
+import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import type { ApprovalStatus } from "@/types/database";
 
 export interface OrganizationReviewRow {
@@ -144,4 +145,174 @@ export async function rejectOrganizationFormAction(formData: FormData): Promise<
   const organizationId = String(formData.get("organizationId") ?? "");
   if (!organizationId) return;
   await reviewOrganization(organizationId, "rejected");
+}
+
+export interface AdminUserMembership {
+  organizationName: string;
+  organizationSlug: string;
+  role: string;
+  approvalStatus: ApprovalStatus;
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string | null;
+  fullName: string | null;
+  isSuperAdmin: boolean;
+  createdAt: string;
+  memberships: AdminUserMembership[];
+}
+
+/**
+ * Lista todos os usuários da plataforma para o painel /admin — gestão de
+ * usuários independente da aprovação de organizações. Perfis e
+ * memberships vêm via RLS (`profiles_select_super_admin` /
+ * `members_select_super_admin`), e-mail é best-effort via cliente admin
+ * (auth.users não tem policy de leitura client-side).
+ */
+export async function listAllUsersForAdmin(): Promise<AdminUserRow[]> {
+  const supabase = await createClient();
+
+  const [{ data: profiles, error: profilesError }, { data: memberRows, error: membersError }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, full_name, is_super_admin, created_at")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("organization_members")
+        .select("user_id, role, organizations ( name, slug, approval_status )"),
+    ]);
+
+  if (profilesError) {
+    logger.error("Falha ao listar perfis para o painel admin", { error: profilesError.message });
+    throw new Error("Não foi possível carregar os usuários.");
+  }
+  if (membersError) {
+    logger.error("Falha ao listar memberships para o painel admin", {
+      error: membersError.message,
+    });
+  }
+
+  const membershipsByUserId = new Map<string, AdminUserMembership[]>();
+  for (const row of memberRows ?? []) {
+    if (!row.organizations) continue;
+    const list = membershipsByUserId.get(row.user_id) ?? [];
+    list.push({
+      organizationName: row.organizations.name,
+      organizationSlug: row.organizations.slug,
+      role: row.role,
+      approvalStatus: row.organizations.approval_status as ApprovalStatus,
+    });
+    membershipsByUserId.set(row.user_id, list);
+  }
+
+  const rows: AdminUserRow[] = (profiles ?? []).map((p) => ({
+    id: p.id,
+    email: null,
+    fullName: p.full_name,
+    isSuperAdmin: p.is_super_admin,
+    createdAt: p.created_at,
+    memberships: membershipsByUserId.get(p.id) ?? [],
+  }));
+
+  try {
+    const admin = createAdminClient();
+    await Promise.all(
+      rows.map(async (row) => {
+        const { data: userData } = await admin.auth.admin.getUserById(row.id);
+        row.email = userData?.user?.email ?? null;
+      }),
+    );
+  } catch {
+    // Service role ainda não configurada — segue sem e-mail.
+  }
+
+  return rows;
+}
+
+export interface SystemLogRow {
+  id: string;
+  level: "warn" | "error";
+  message: string;
+  context: unknown;
+  createdAt: string;
+}
+
+/**
+ * Lista os logs recentes de erro/warning da aplicação (`system_error_logs`,
+ * gravados pelo logger estruturado) para a aba "Logs" do painel admin.
+ * Essa tabela não tem policy nenhuma para `authenticated`/`anon` — só o
+ * cliente admin lê — então a autorização real é este `isCurrentUserSuperAdmin`
+ * checado aqui em código, e não a RLS.
+ */
+export async function listRecentSystemLogs(limit = 100): Promise<SystemLogRow[]> {
+  const supabase = await createClient();
+  const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
+  if (!isSuperAdmin) return [];
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("system_error_logs")
+      .select("id, level, message, context, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error("Falha ao listar logs do sistema", { error: error.message });
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      level: row.level as "warn" | "error",
+      message: row.message,
+      context: row.context,
+      createdAt: row.created_at,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export interface LoginAttemptRow {
+  id: string;
+  email: string;
+  succeeded: boolean;
+  createdAt: string;
+}
+
+/**
+ * Lista as tentativas de login recentes (`auth_login_attempts`) — útil
+ * para investigar bloqueios temporários e tentativas de força bruta.
+ * Mesma observação de autorização que `listRecentSystemLogs`.
+ */
+export async function listRecentLoginAttempts(limit = 100): Promise<LoginAttemptRow[]> {
+  const supabase = await createClient();
+  const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
+  if (!isSuperAdmin) return [];
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("auth_login_attempts")
+      .select("id, email, succeeded, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error("Falha ao listar tentativas de login", { error: error.message });
+      return [];
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      email: row.email,
+      succeeded: row.succeeded,
+      createdAt: row.created_at,
+    }));
+  } catch {
+    return [];
+  }
 }

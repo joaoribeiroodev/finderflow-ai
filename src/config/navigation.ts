@@ -54,7 +54,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Conta",
     items: [
-      { href: "/contracts", label: "Contratos", icon: Receipt, comingInPhase: 9 },
+      { href: "/contracts", label: "Contratos", icon: Receipt },
       { href: "/settings", label: "Configurações", icon: Settings },
     ],
   },

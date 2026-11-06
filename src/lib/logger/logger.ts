@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Logger estruturado mínimo, server-side.
  *
@@ -14,6 +16,13 @@
  * Em produção, trocar por um sink externo (ex.: provedor de
  * observabilidade) mantendo esta mesma interface — a redação continua
  * valendo porque acontece antes da serialização, não no sink.
+ *
+ * Fase 9: além do console, todo `warn`/`error` também é persistido
+ * (melhor esforço, nunca bloqueante) em `system_error_logs`, para
+ * alimentar a aba "Logs" do painel admin — onde o super admin acompanha
+ * falhas reais do sistema sem depender de acesso aos logs do Vercel.
+ * Import dinâmico do cliente admin para nunca arriscar puxar
+ * `service_role` para um bundle errado nem criar dependência circular.
  */
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -55,6 +64,29 @@ function redactContext(context: LogContext | undefined): LogContext | undefined 
   return redactValue(context, 0) as LogContext;
 }
 
+/**
+ * Persiste warn/error em `system_error_logs` para o painel admin.
+ * Melhor esforço absoluto: nunca lança, nunca bloqueia o chamador, e
+ * nunca usa o próprio `logger` em caso de falha (evitaria recursão).
+ * JSON.parse(JSON.stringify(...)) garante um valor serializável como
+ * `Json` mesmo que o contexto redigido contenha algo não-plano.
+ */
+function persistToDatabase(level: LogLevel, message: string, context?: LogContext) {
+  if (level !== "warn" && level !== "error") return;
+
+  void (async () => {
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const admin = createAdminClient();
+      const safeContext = JSON.parse(JSON.stringify(redactContext(context) ?? {}));
+      await admin.from("system_error_logs").insert({ level, message, context: safeContext });
+    } catch {
+      // Sem SUPABASE_SERVICE_ROLE_KEY configurada, ou falha de rede/DB —
+      // ignorado silenciosamente. O console.* acima já registrou o evento.
+    }
+  })();
+}
+
 function emit(level: LogLevel, message: string, context?: LogContext) {
   const entry = {
     level,
@@ -75,6 +107,8 @@ function emit(level: LogLevel, message: string, context?: LogContext) {
     default:
       console.log(serialized);
   }
+
+  persistToDatabase(level, message, context);
 }
 
 export const logger = {
