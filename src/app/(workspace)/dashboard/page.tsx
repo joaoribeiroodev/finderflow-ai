@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Building2, CheckSquare, FileText, Rows3, Sparkles, History } from "lucide-react";
+import { Building2, CheckSquare, FileText, Rows3, History } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
@@ -29,27 +29,34 @@ export default async function DashboardPage() {
   const maxOriginCount = Math.max(1, ...breakdown.origins.map((s) => s.count));
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        eyebrow="Seu painel de crescimento"
-        title={
-          <>
-            Bem-vindo(a), {activeOrganization.organizationName}{" "}
-            <span className="text-[var(--ff-violet-glow)]">✦</span>
-          </>
-        }
-        subtitle="Aqui está o resumo real da sua operação comercial nesta organização."
-      />
+    <div className="flex flex-col gap-6">
+      <div className="border-b border-[var(--ff-border-subtle)] pb-5">
+        <PageHeader
+          eyebrow="Seu painel de crescimento"
+          title={
+            <>
+              Bem-vindo(a), {activeOrganization.organizationName}{" "}
+              <span className="text-[var(--ff-violet-glow)]">✦</span>
+            </>
+          }
+          subtitle="Aqui está o resumo real da sua operação comercial nesta organização."
+        />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="border-l-2 border-[var(--ff-brass)] bg-[var(--ff-bg-surface)] px-5 py-6 sm:px-8">
+        <p className="mb-2 text-sm text-[var(--ff-text-muted)]">Valor ponderado em negociação</p>
+        <p className="font-serif text-4xl tracking-tight text-[var(--ff-brass-soft)] sm:text-6xl">
+          {formatBRL(data.weightedPipelineValue)}
+        </p>
+        <p className="mt-2 text-sm text-[var(--ff-text-secondary)]">
+          O registro financeiro estimado do pipeline ativo.
+        </p>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="Empresas cadastradas" value={data.companiesCount.toLocaleString("pt-BR")} icon={Building2} />
         <KpiCard label="Leads ativos" value={data.activeLeadsCount.toLocaleString("pt-BR")} icon={Rows3} />
         <KpiCard label="Propostas enviadas" value={data.proposalsSentCount.toLocaleString("pt-BR")} icon={FileText} />
-        <KpiCard
-          label="Pipeline ponderado"
-          value={formatBRL(data.weightedPipelineValue)}
-          icon={Sparkles}
-        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -84,7 +91,7 @@ export default async function DashboardPage() {
               description="Tarefas aparecerão aqui quando você criar follow-ups nos leads."
             />
           ) : (
-            <ul className="flex flex-col divide-y divide-[#2d243c]">
+            <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
               {data.pendingTasks.map((task) => (
                 <li key={task.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span className="truncate text-[var(--ff-text-primary)]">{task.title}</span>
@@ -106,7 +113,7 @@ export default async function DashboardPage() {
             description="O histórico de mudanças de etapa aparecerá aqui conforme leads avançarem no pipeline."
           />
         ) : (
-          <ul className="flex flex-col divide-y divide-[#2d243c]">
+          <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
             {data.recentActivity.map((item) => (
               <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                 <span className="text-[var(--ff-text-primary)]">
@@ -140,7 +147,7 @@ export default async function DashboardPage() {
             trend.wonRevenue.map((bucket) => (
               <div key={bucket.key} className="my-3 grid grid-cols-[minmax(0,60px)_1fr_auto] items-center gap-2.5 text-xs">
                 <span className="text-[var(--ff-text-secondary)]">{bucket.label}</span>
-                <div className="h-2.5 overflow-hidden rounded-full bg-[#312644]">
+                <div className="h-2.5 overflow-hidden rounded-full bg-[var(--ff-bg-elevated)]">
                   <div
                     className="h-full rounded-full"
                     style={{

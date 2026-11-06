@@ -3,43 +3,67 @@
 
 /*
  * Tokens de design do FinderFlow AI (docs/06-design-system.md).
- * Dark mode é o padrão do produto (não alterna por prefers-color-scheme) —
- * a composição final de theming/light mode será revisada na Fase 2
- * (shell visual). Por ora, fixamos o tema escuro definido na spec.
+ *
+ * Reformulação visual "Registro & Selo" (2026-11-06, com v0): o produto
+ * é literalmente um livro de registro de empresas — dados públicos de
+ * CNPJ validados, organizados por etapa como um processo oficial. Fundo
+ * em indigo-tinta (não preto neutro), acento dourado-latão para
+ * validação/ação primária, verde-pátina para avanço/dinheiro/mapa,
+ * vermelho-lacre para alertas. Nomes de variável antigos (`--ff-purple-*`,
+ * `--ff-violet-glow`, `--ff-magenta`, `--ff-cyan`) ficam como alias das
+ * novas cores — páginas ainda não migradas (fora do lote inicial:
+ * Dashboard, Empresas, Pipeline, Mapa) continuam coerentes com a nova
+ * paleta sem precisar editar cada arquivo agora.
+ *
+ * Dark mode é o padrão do produto (não alterna por prefers-color-scheme).
  */
 :root {
-  --ff-bg-canvas: #0b0912;
-  --ff-bg-sidebar: #100d1c;
-  --ff-bg-surface: #171326;
-  --ff-bg-elevated: #211a35;
-  --ff-border-subtle: #302545;
-  --ff-purple-500: #8b5cf6;
-  --ff-purple-600: #7c3aed;
-  --ff-violet-glow: #a78bfa;
-  --ff-magenta: #d946ef;
-  --ff-cyan: #22d3ee;
-  --ff-success: #34d399;
-  --ff-warning: #fbbf24;
-  --ff-danger: #fb7185;
-  --ff-text-primary: #f5f3ff;
-  --ff-text-secondary: #b7aec9;
-  /* Fase 8 (hardening): #81778f dava contraste 4.29:1 sobre
-     --ff-bg-surface — abaixo do mínimo AA (4.5:1) para texto normal,
-     achado pelo axe-core (color-contrast, "serious") em praticamente
-     toda página autenticada (badges "Fase X", placeholder de busca,
-     labels de card). #9790a8 mede ~5.9:1 sobre o mesmo fundo. */
-  --ff-text-muted: #9790a8;
+  --ff-bg-canvas: #121826;
+  --ff-bg-sidebar: #0f1522;
+  --ff-bg-surface: #192234;
+  --ff-bg-elevated: #202c40;
+  --ff-border-subtle: #34445a;
 
-  /* Raio: cards 14–18px (docs/06-design-system.md §6.4) */
-  --ff-radius-sm: 10px;
-  --ff-radius-md: 14px;
-  --ff-radius-lg: 18px;
+  /* Paleta "Registro & Selo" */
+  --ff-brass: #c68a3b;
+  --ff-brass-soft: #e1b46a;
+  --ff-patina: #4f8f7e;
+  --ff-patina-soft: #8fc2ac;
+  --ff-seal: #a94b4b;
+
+  /* Aliases de compatibilidade — mesmas variáveis usadas no resto do
+     app antes da reformulação, agora resolvendo para a nova paleta. */
+  --ff-purple-500: var(--ff-brass);
+  --ff-purple-600: #a96f2d;
+  --ff-violet-glow: var(--ff-brass-soft);
+  --ff-magenta: var(--ff-seal);
+  --ff-cyan: var(--ff-patina-soft);
+  --ff-success: var(--ff-patina-soft);
+  --ff-warning: var(--ff-brass-soft);
+
+  /* `--ff-danger` é usado como cor de TEXTO (mensagens de erro, role="alert")
+     em dezenas de telas — precisa de contraste AA (4.5:1) sobre
+     --ff-bg-canvas/--ff-bg-surface, o que `--ff-seal` sozinho não atinge
+     (3.2:1, falha AA). Por isso tem seu próprio tom, mais claro, dentro
+     da mesma família de vermelho-lacre: #d17a6d mede ~5.7:1 sobre
+     --ff-bg-canvas e ~5.1:1 sobre --ff-bg-surface. */
+  --ff-danger: #d17a6d;
+
+  --ff-text-primary: #f2eadb;
+  --ff-text-secondary: #c0c3c5;
+  --ff-text-muted: #929ba7;
+
+  /* Raio: documentos/registro — mais contido que o antigo "card SaaS
+     arredondado" (era 10/14/18px); 5/8/10px lê como lâmina/folha, não
+     como pílula. */
+  --ff-radius-sm: 5px;
+  --ff-radius-md: 8px;
+  --ff-radius-lg: 10px;
   --ff-radius-pill: 999px;
 
-  /* Sombras: suaves, luz ambiente localizada — nunca brilho em todo card */
-  --ff-shadow-card: 0 8px 25px rgba(0, 0, 0, 0.12);
-  --ff-shadow-elevated: 0 18px 55px rgba(0, 0, 0, 0.3);
-  --ff-shadow-glow-purple: 0 0 26px rgba(139, 92, 246, 0.35);
+  --ff-shadow-card: 0 10px 24px rgba(3, 8, 18, 0.2);
+  --ff-shadow-elevated: 0 18px 44px rgba(3, 8, 18, 0.35);
+  --ff-shadow-glow-purple: 0 0 26px rgba(198, 138, 59, 0.35);
 
   /* Microinterações: 150–220ms (docs/06-design-system.md §6.7) */
   --ff-transition-fast: 150ms;
@@ -52,14 +76,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-serif: var(--font-fraunces);
 }
 
 body {
-  background:
-    radial-gradient(ellipse at 78% -18%, rgba(124, 58, 237, 0.16), transparent 38%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-variant-numeric: normal;
@@ -78,11 +101,11 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 .leaflet-control-attribution {
-  background: rgba(23, 19, 38, 0.85) !important;
+  background: rgba(15, 21, 34, 0.9) !important;
   color: var(--ff-text-muted) !important;
 }
 .leaflet-control-attribution a {
-  color: var(--ff-violet-glow) !important;
+  color: var(--ff-brass-soft) !important;
 }
 .leaflet-control-zoom a {
   background: var(--ff-bg-elevated) !important;
