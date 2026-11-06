@@ -113,3 +113,60 @@ export async function clearOpenAiCredentialsAction(): Promise<void> {
   }
   revalidatePath("/settings");
 }
+
+/**
+ * Conta Gmail da organização usada para enviar e-mails de prospecção
+ * (Fase 9) — endereço + senha de app (não a senha normal da conta;
+ * gerada em myaccount.google.com/apppasswords, exige verificação em
+ * duas etapas ativada). Mesmo padrão de Vault das demais credenciais.
+ */
+export async function saveGmailCredentialsAction(
+  _prev: CredentialsActionResult,
+  formData: FormData,
+): Promise<CredentialsActionResult> {
+  const email = String(formData.get("email") ?? "").trim();
+  const appPassword = String(formData.get("appPassword") ?? "").trim();
+
+  if (!email || !email.includes("@")) {
+    return { success: false, message: "Informe um e-mail Gmail válido." };
+  }
+  if (!appPassword) {
+    return { success: false, message: "Informe a senha de app gerada pelo Google." };
+  }
+
+  const org = await requireActiveOrganization();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("set_org_gmail_credentials", {
+    p_org: org.organizationId,
+    p_email: email,
+    p_app_password: appPassword,
+  });
+
+  if (error) {
+    logger.error("Falha ao salvar credenciais Gmail da organização", {
+      error: error.message,
+      organizationId: org.organizationId,
+    });
+    return {
+      success: false,
+      message: "Não foi possível salvar a conta Gmail. Confirme que você é owner/admin da organização.",
+    };
+  }
+
+  revalidatePath("/settings");
+  return { success: true, message: "Conta Gmail conectada com sucesso." };
+}
+
+export async function clearGmailCredentialsAction(): Promise<void> {
+  const org = await requireActiveOrganization();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("clear_org_gmail_credentials", { p_org: org.organizationId });
+  if (error) {
+    logger.error("Falha ao remover credenciais Gmail da organização", {
+      error: error.message,
+      organizationId: org.organizationId,
+    });
+  }
+  revalidatePath("/settings");
+}

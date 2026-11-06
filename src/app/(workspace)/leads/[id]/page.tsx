@@ -27,7 +27,13 @@ import { TaskItem } from "@/components/leads/task-item";
 import { LeadScoreSection } from "@/components/ai/lead-score-section";
 import { OutreachSection } from "@/components/ai/outreach-section";
 import { ProposalAssistantSection } from "@/components/ai/proposal-assistant-section";
+import { OutreachEmailComposer } from "@/components/outreach/outreach-email-composer";
 import { listLeadAnalyses } from "@/modules/ai/lead-scorer.service";
+import {
+  listOutreachEmails,
+  resolveDefaultRecipientEmail,
+} from "@/modules/outreach-email/outreach-email.service";
+import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import type { LeadScoreResult } from "@/lib/ai/schemas";
 import { INTERACTION_TYPE_LABELS } from "@/lib/validation/interactions";
 import { formatRelativeDateTime } from "@/lib/utils/format";
@@ -51,6 +57,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const leadAnalyses = await listLeadAnalyses(supabase, activeOrganization.organizationId, id);
   const latestScore = (leadAnalyses.find((a) => a.analysis_type === "lead_score")?.result ??
     null) as LeadScoreResult | null;
+
+  const [outreachHistory, defaultRecipientEmail, integrationStatus] = await Promise.all([
+    listOutreachEmails(supabase, activeOrganization.organizationId, id),
+    resolveDefaultRecipientEmail(supabase, activeOrganization.organizationId, lead.company_id),
+    getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
+  ]);
 
   const stageOptions = stages.map((s) => ({
     id: s.id,
@@ -170,6 +182,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <LeadScoreSection leadId={lead.id} initialScore={latestScore} />
         <OutreachSection leadId={lead.id} />
         <ProposalAssistantSection leadId={lead.id} />
+        <OutreachEmailComposer
+          leadId={lead.id}
+          companyId={lead.company_id}
+          defaultRecipientEmail={defaultRecipientEmail}
+          history={outreachHistory}
+          gmailConfigured={integrationStatus.gmailConfigured}
+        />
       </div>
 
       <Card>

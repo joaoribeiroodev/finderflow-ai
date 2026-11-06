@@ -16,6 +16,12 @@ import { ProposalItemForm } from "@/components/proposals/proposal-item-form";
 import { ProposalItemRowView } from "@/components/proposals/proposal-item-row";
 import { ProposalPdfButton } from "@/components/proposals/proposal-pdf-button";
 import { DealCard } from "@/components/deals/deal-card";
+import { OutreachEmailComposer } from "@/components/outreach/outreach-email-composer";
+import {
+  listOutreachEmails,
+  resolveDefaultRecipientEmail,
+} from "@/modules/outreach-email/outreach-email.service";
+import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { effectiveProposalStatus, type ProposalStatus } from "@/lib/validation/proposals";
 import { formatBRL, formatRelativeDateTime } from "@/lib/utils/format";
 
@@ -38,6 +44,15 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
   const signedUrl = proposal.document_path
     ? await getProposalPdfSignedUrl(supabase, proposal.document_path)
     : null;
+
+  const leadCompanyId = proposal.lead?.company?.id ?? null;
+  const [outreachHistory, defaultRecipientEmail, integrationStatus] = await Promise.all([
+    proposal.lead ? listOutreachEmails(supabase, activeOrganization.organizationId, proposal.lead.id) : Promise.resolve([]),
+    leadCompanyId
+      ? resolveDefaultRecipientEmail(supabase, activeOrganization.organizationId, leadCompanyId)
+      : Promise.resolve(null),
+    getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -117,6 +132,16 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
         <CardHeader title="PDF" subtitle="Documento gerado a partir dos itens atuais da proposta." />
         <ProposalPdfButton proposalId={proposal.id} signedUrl={signedUrl} />
       </Card>
+
+      {proposal.lead && leadCompanyId ? (
+        <OutreachEmailComposer
+          leadId={proposal.lead.id}
+          companyId={leadCompanyId}
+          defaultRecipientEmail={defaultRecipientEmail}
+          history={outreachHistory}
+          gmailConfigured={integrationStatus.gmailConfigured}
+        />
+      ) : null}
 
       {proposal.status === "accepted" ? (
         <Card>

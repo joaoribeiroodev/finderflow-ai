@@ -12,6 +12,8 @@ export interface OrganizationIntegrationStatus {
   asaasEnvironment: "sandbox" | "production";
   openaiConfigured: boolean;
   openaiModel: string | null;
+  gmailConfigured: boolean;
+  gmailEmail: string | null;
 }
 
 const DEFAULT_STATUS: OrganizationIntegrationStatus = {
@@ -19,6 +21,8 @@ const DEFAULT_STATUS: OrganizationIntegrationStatus = {
   asaasEnvironment: "sandbox",
   openaiConfigured: false,
   openaiModel: null,
+  gmailConfigured: false,
+  gmailEmail: null,
 };
 
 /**
@@ -33,7 +37,9 @@ export async function getOrganizationIntegrationStatus(
 ): Promise<OrganizationIntegrationStatus> {
   const { data, error } = await supabase
     .from("organization_integration_credentials")
-    .select("asaas_environment, asaas_configured_at, openai_model, openai_configured_at")
+    .select(
+      "asaas_environment, asaas_configured_at, openai_model, openai_configured_at, gmail_email, gmail_configured_at",
+    )
     .eq("organization_id", organizationId)
     .maybeSingle();
 
@@ -52,5 +58,7 @@ export async function getOrganizationIntegrationStatus(
     asaasEnvironment: (data.asaas_environment as "sandbox" | "production") ?? "sandbox",
     openaiConfigured: Boolean(data.openai_configured_at),
     openaiModel: data.openai_model,
+    gmailConfigured: Boolean(data.gmail_configured_at),
+    gmailEmail: data.gmail_email,
   };
 }

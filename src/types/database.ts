@@ -1131,6 +1131,9 @@ export type Database = {
           asaas_configured_at: string | null
           asaas_environment: string
           asaas_secret_id: string | null
+          gmail_configured_at: string | null
+          gmail_email: string | null
+          gmail_secret_id: string | null
           openai_configured_at: string | null
           openai_model: string | null
           openai_secret_id: string | null
@@ -1141,6 +1144,9 @@ export type Database = {
           asaas_configured_at?: string | null
           asaas_environment?: string
           asaas_secret_id?: string | null
+          gmail_configured_at?: string | null
+          gmail_email?: string | null
+          gmail_secret_id?: string | null
           openai_configured_at?: string | null
           openai_model?: string | null
           openai_secret_id?: string | null
@@ -1151,6 +1157,9 @@ export type Database = {
           asaas_configured_at?: string | null
           asaas_environment?: string
           asaas_secret_id?: string | null
+          gmail_configured_at?: string | null
+          gmail_email?: string | null
+          gmail_secret_id?: string | null
           openai_configured_at?: string | null
           openai_model?: string | null
           openai_secret_id?: string | null
@@ -1324,6 +1333,80 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      outreach_emails: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          lead_id: string
+          organization_id: string
+          recipient_email: string
+          sent_by: string | null
+          source_analysis_id: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id: string
+          organization_id: string
+          recipient_email: string
+          sent_by?: string | null
+          source_analysis_id?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string
+          organization_id?: string
+          recipient_email?: string
+          sent_by?: string | null
+          source_analysis_id?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_emails_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "outreach_emails_lead_same_org_fk"
+            columns: ["organization_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "outreach_emails_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_emails_source_analysis_id_fkey"
+            columns: ["source_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "ai_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipeline_stages: {
         Row: {
@@ -1816,6 +1899,10 @@ export type Database = {
         Args: { p_org: string }
         Returns: undefined
       }
+      clear_org_gmail_credentials: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
       clear_org_openai_credentials: {
         Args: { p_org: string }
         Returns: undefined
@@ -1856,6 +1943,7 @@ export type Database = {
         }
       }
       get_org_asaas_api_key: { Args: { p_org: string }; Returns: string }
+      get_org_gmail_app_password: { Args: { p_org: string }; Returns: string }
       get_org_openai_api_key: { Args: { p_org: string }; Returns: string }
       has_org_role: {
         Args: {
@@ -1940,6 +2028,10 @@ export type Database = {
       }
       set_org_asaas_credentials: {
         Args: { p_api_key: string; p_environment: string; p_org: string }
+        Returns: undefined
+      }
+      set_org_gmail_credentials: {
+        Args: { p_app_password: string; p_email: string; p_org: string }
         Returns: undefined
       }
       set_org_openai_credentials: {

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   AsaasCredentialsForm,
+  GmailCredentialsForm,
   OpenAiCredentialsForm,
 } from "@/components/settings/integration-credentials-form";
 
@@ -146,6 +147,10 @@ export default async function SettingsPage() {
         <OpenAiCredentialsForm
           configured={integrationStatus.openaiConfigured}
           model={integrationStatus.openaiModel}
+        />
+        <GmailCredentialsForm
+          configured={integrationStatus.gmailConfigured}
+          email={integrationStatus.gmailEmail}
         />
       </Card>
 
