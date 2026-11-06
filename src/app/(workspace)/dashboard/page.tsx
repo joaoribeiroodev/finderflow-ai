@@ -81,7 +81,7 @@ export default async function DashboardPage() {
             <EmptyState
               icon={CheckSquare}
               title="Nenhuma tarefa pendente"
-              description="Tarefas aparecerão aqui quando leads e follow-ups forem criados (Fase 4)."
+              description="Tarefas aparecerão aqui quando você criar follow-ups nos leads."
             />
           ) : (
             <ul className="flex flex-col divide-y divide-[#2d243c]">
@@ -103,7 +103,7 @@ export default async function DashboardPage() {
           <EmptyState
             icon={History}
             title="Ainda não há atividade registrada"
-            description="O histórico de mudanças de etapa aparecerá aqui conforme leads avançarem no pipeline (Fase 4)."
+            description="O histórico de mudanças de etapa aparecerá aqui conforme leads avançarem no pipeline."
           />
         ) : (
           <ul className="flex flex-col divide-y divide-[#2d243c]">

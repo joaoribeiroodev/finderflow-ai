@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Building2, Shield, Users, Plug, Lock } from "lucide-react";
+import { Building2, Download, Shield, Users, Plug, Lock } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
@@ -13,6 +13,7 @@ import {
   GmailCredentialsForm,
   OpenAiCredentialsForm,
 } from "@/components/settings/integration-credentials-form";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
 
@@ -162,15 +163,28 @@ export default async function SettingsPage() {
               segurança
             </span>
           }
-          subtitle="Dados, retenção, exportação e supressão"
-          action={<Badge variant="outline">Fase 8</Badge>}
+          subtitle="Dados e exportação"
         />
-        <p className="flex items-start gap-2 text-sm text-[var(--ff-text-secondary)]">
+        <p className="mb-4 flex items-start gap-2 text-sm text-[var(--ff-text-secondary)]">
           <Shield className="mt-0.5 size-4 shrink-0 text-[var(--ff-text-muted)]" aria-hidden />
-          Isolamento entre organizações já é garantido por Row Level Security no banco (verificado
-          na Fase 1). Exportação/supressão de dados e políticas de retenção detalhadas serão
-          implementadas no hardening da Fase 8.
+          Isolamento entre organizações é garantido por Row Level Security no banco — cada
+          organização só enxerga seus próprios dados.
         </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-[var(--ff-text-primary)]">Exportar meus dados</p>
+            <p className="text-xs text-[var(--ff-text-muted)]">
+              Baixe um arquivo .json com empresas, leads, propostas, contratos e todo o histórico
+              desta organização.
+            </p>
+          </div>
+          <a href="/api/v1/organizations/export" download>
+            <Button type="button" size="sm" variant="secondary" className="gap-1.5">
+              <Download className="size-3.5" aria-hidden />
+              Exportar dados
+            </Button>
+          </a>
+        </div>
       </Card>
     </div>
   );
