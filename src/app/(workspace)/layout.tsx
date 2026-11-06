@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { resolveActiveOrganization } from "@/modules/organizations/active-organization";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
+import { listNotifications } from "@/modules/notifications/notifications.service";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 
 /**
@@ -37,12 +38,15 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     redirect("/pending-approval");
   }
 
+  const notifications = await listNotifications(supabase, activeOrganization.organizationId, user.id);
+
   return (
     <WorkspaceShell
       activeOrganization={activeOrganization}
       memberships={memberships}
       userEmail={user.email ?? null}
       isSuperAdmin={isSuperAdmin}
+      notifications={notifications}
     >
       {children}
     </WorkspaceShell>

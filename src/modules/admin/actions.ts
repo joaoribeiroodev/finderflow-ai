@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
+import { notifyUsers } from "@/modules/notifications/notifications.service";
 import type { ApprovalStatus } from "@/types/database";
 
 export interface OrganizationReviewRow {
@@ -130,6 +131,26 @@ async function reviewOrganization(organizationId: string, decision: "approved" |
 
   if (!data || data.length === 0) {
     throw new Error("Você não tem permissão para revisar organizações.");
+  }
+
+  // Notifica os membros ativos da organização revisada — melhor esforço,
+  // nunca bloqueia a aprovação/rejeição em si se falhar.
+  const { data: memberRows } = await supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", organizationId)
+    .eq("status", "active");
+
+  const memberIds = (memberRows ?? []).map((m) => m.user_id);
+  if (memberIds.length > 0) {
+    await notifyUsers(organizationId, memberIds, {
+      type: decision === "approved" ? "organization_approved" : "organization_rejected",
+      title: decision === "approved" ? "Organização aprovada" : "Organização rejeitada",
+      body:
+        decision === "approved"
+          ? "Sua organização foi aprovada e já pode usar o FinderFlow AI normalmente."
+          : "Sua organização foi rejeitada pelo administrador da plataforma.",
+    });
   }
 
   revalidatePath("/admin");
