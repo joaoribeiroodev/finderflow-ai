@@ -11,6 +11,7 @@ import {
   BarChart3,
   Receipt,
   Settings,
+  Map,
 } from "lucide-react";
 
 /**
@@ -43,6 +44,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
       { href: "/prospecting", label: "Prospecção", icon: Search },
       { href: "/companies", label: "Empresas", icon: Building2 },
+      { href: "/map", label: "Mapa", icon: Map },
       { href: "/leads", label: "Leads", icon: Rows3 },
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/assistant", label: "Assistente IA", icon: Sparkles },

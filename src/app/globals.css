@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 /*
  * Tokens de design do FinderFlow AI (docs/06-design-system.md).
@@ -67,6 +68,26 @@ body {
 /* KPIs e valores monetários: tabular-nums evita "dança" de dígitos */
 .ff-tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Aba Mapa (Leaflet/OpenStreetMap): a biblioteca assume fundo claro por
+   padrão — ajustes mínimos para encaixar no tema escuro do produto sem
+   reescrever a biblioteca inteira. */
+.leaflet-container {
+  background: var(--ff-bg-surface);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+.leaflet-control-attribution {
+  background: rgba(23, 19, 38, 0.85) !important;
+  color: var(--ff-text-muted) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--ff-violet-glow) !important;
+}
+.leaflet-control-zoom a {
+  background: var(--ff-bg-elevated) !important;
+  color: var(--ff-text-primary) !important;
+  border-color: var(--ff-border-subtle) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

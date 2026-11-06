@@ -406,8 +406,12 @@ export type Database = {
           created_at: string
           description: string | null
           email: string | null
+          geocode_failed_at: string | null
+          geocoded_at: string | null
           id: string
+          latitude: number | null
           legal_name: string | null
+          longitude: number | null
           name: string
           normalized_name: string
           organization_id: string
@@ -425,8 +429,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          geocode_failed_at?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
           legal_name?: string | null
+          longitude?: number | null
           name: string
           normalized_name: string
           organization_id: string
@@ -444,8 +452,12 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          geocode_failed_at?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
           legal_name?: string | null
+          longitude?: number | null
           name?: string
           normalized_name?: string
           organization_id?: string
