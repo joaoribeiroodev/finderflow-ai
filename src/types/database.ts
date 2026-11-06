@@ -6,11 +6,10 @@
  *   mcp__Supabase__generate_typescript_types (MCP), equivalente a
  *   npx supabase gen types typescript --project-id lxzsefabmnagiaywaxeb --schema public
  *
- * NÃO EDITAR AS SEÇÕES GERADAS À MÃO. Para atualizar após uma nova migration,
- * regenere e substitua o conteúdo abaixo (mantendo os aliases de
- * conveniência ao final do arquivo).
+ * NAO EDITAR AS SECOES GERADAS A MAO. Para atualizar apos uma nova migration,
+ * regenere e substitua o conteudo abaixo (mantendo os aliases de
+ * conveniencia ao final do arquivo).
  */
-
 
 export type Json =
   | string
@@ -1919,6 +1918,10 @@ export type Database = {
         Args: { org_name: string; org_slug: string }
         Returns: string
       }
+      delete_organization_cascade: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
       get_or_create_ai_quota: {
         Args: {
           p_default_limit: number
@@ -2196,6 +2199,7 @@ export const Constants = {
     },
   },
 } as const
+
 
 export type OrgRole = Database["public"]["Enums"]["org_role"]
 export type MemberStatus = "invited" | "active" | "suspended"

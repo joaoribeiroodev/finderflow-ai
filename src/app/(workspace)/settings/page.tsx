@@ -14,6 +14,7 @@ import {
   OpenAiCredentialsForm,
 } from "@/components/settings/integration-credentials-form";
 import { Button } from "@/components/ui/button";
+import { DangerZone } from "@/components/settings/danger-zone";
 
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
 
@@ -163,7 +164,7 @@ export default async function SettingsPage() {
               segurança
             </span>
           }
-          subtitle="Dados e exportação"
+          subtitle="Dados, exportação e exclusão"
         />
         <p className="mb-4 flex items-start gap-2 text-sm text-[var(--ff-text-secondary)]">
           <Shield className="mt-0.5 size-4 shrink-0 text-[var(--ff-text-muted)]" aria-hidden />
@@ -185,6 +186,10 @@ export default async function SettingsPage() {
             </Button>
           </a>
         </div>
+        <DangerZone
+          organizationSlug={activeOrganization.organizationSlug}
+          isOwner={activeOrganization.role === "owner"}
+        />
       </Card>
     </div>
   );
