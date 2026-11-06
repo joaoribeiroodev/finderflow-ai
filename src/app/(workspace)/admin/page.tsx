@@ -6,6 +6,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdminTabs } from "@/components/admin/admin-tabs";
+import { UserAdminActions } from "@/components/admin/user-admin-actions";
 import { createClient } from "@/lib/supabase/server";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import {
@@ -105,14 +106,16 @@ function OrganizationsSection({ organizations }: { organizations: OrganizationRe
   );
 }
 
-function UserRow({ user }: { user: AdminUserRow }) {
+function UserRow({ user, currentUserId }: { user: AdminUserRow; currentUserId: string }) {
   return (
-    <li className="flex flex-col gap-1 border-b border-[var(--ff-border-subtle)] py-3 last:border-0">
+    <li className="flex flex-col gap-2 border-b border-[var(--ff-border-subtle)] py-3 last:border-0">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium text-[var(--ff-text-primary)]">
           {user.fullName ?? user.email ?? user.id}
         </p>
         {user.isSuperAdmin ? <Badge variant="success">Super admin</Badge> : null}
+        {!user.isActive ? <Badge variant="danger">Desativado</Badge> : null}
+        {user.id === currentUserId ? <Badge variant="outline">Você</Badge> : null}
       </div>
       <p className="text-xs text-[var(--ff-text-muted)]">
         {user.email ?? "e-mail indisponível"} · desde{" "}
@@ -127,23 +130,29 @@ function UserRow({ user }: { user: AdminUserRow }) {
       ) : (
         <p className="text-xs text-[var(--ff-text-muted)]">Sem organização.</p>
       )}
+      <UserAdminActions
+        userId={user.id}
+        isActive={user.isActive}
+        isSuperAdmin={user.isSuperAdmin}
+        isSelf={user.id === currentUserId}
+      />
     </li>
   );
 }
 
-function UsersSection({ users }: { users: AdminUserRow[] }) {
+function UsersSection({ users, currentUserId }: { users: AdminUserRow[]; currentUserId: string }) {
   return (
     <Card>
       <CardHeader
         title={`Usuários (${users.length})`}
-        subtitle="Todas as contas criadas na plataforma, com suas organizações e papéis."
+        subtitle="Todas as contas criadas na plataforma — ative/desative, redefina senhas e gerencie o acesso de super admin."
       />
       {users.length === 0 ? (
         <p className="text-sm text-[var(--ff-text-muted)]">Nenhum usuário encontrado.</p>
       ) : (
         <ul>
           {users.map((user) => (
-            <UserRow key={user.id} user={user} />
+            <UserRow key={user.id} user={user} currentUserId={currentUserId} />
           ))}
         </ul>
       )}
@@ -231,6 +240,10 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+
   const [organizations, users, systemLogs, loginAttempts] = await Promise.all([
     listOrganizationsForReview(),
     listAllUsersForAdmin(),
@@ -253,7 +266,11 @@ export default async function AdminPage() {
             label: `Organizações${organizations.some((o) => o.approvalStatus === "pending") ? " ●" : ""}`,
             content: <OrganizationsSection organizations={organizations} />,
           },
-          { key: "users", label: "Usuários", content: <UsersSection users={users} /> },
+          {
+            key: "users",
+            label: "Usuários",
+            content: <UsersSection users={users} currentUserId={currentUser?.id ?? ""} />,
+          },
           {
             key: "logs",
             label: "Logs",

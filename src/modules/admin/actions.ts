@@ -180,6 +180,7 @@ export interface AdminUserRow {
   email: string | null;
   fullName: string | null;
   isSuperAdmin: boolean;
+  isActive: boolean;
   createdAt: string;
   memberships: AdminUserMembership[];
 }
@@ -233,6 +234,7 @@ export async function listAllUsersForAdmin(): Promise<AdminUserRow[]> {
     email: null,
     fullName: p.full_name,
     isSuperAdmin: p.is_super_admin,
+    isActive: true,
     createdAt: p.created_at,
     memberships: membershipsByUserId.get(p.id) ?? [],
   }));
@@ -243,13 +245,129 @@ export async function listAllUsersForAdmin(): Promise<AdminUserRow[]> {
       rows.map(async (row) => {
         const { data: userData } = await admin.auth.admin.getUserById(row.id);
         row.email = userData?.user?.email ?? null;
+        const bannedUntil = userData?.user?.banned_until;
+        row.isActive = !bannedUntil || new Date(bannedUntil).getTime() <= Date.now();
       }),
     );
   } catch {
-    // Service role ainda não configurada — segue sem e-mail.
+    // Service role ainda não configurada — segue sem e-mail e como ativo.
   }
 
   return rows;
+}
+
+/**
+ * Autoriza a ação no código (não na RLS) — mesma observação das demais
+ * funções do painel admin que usam o cliente com service role. Retorna
+ * o id do usuário autenticado para checagens de "não mexer na própria
+ * conta" (evitar que o super admin se desative ou se rebaixe por
+ * engano e fique trancado para fora do próprio painel).
+ */
+async function requireSuperAdminActor(): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+
+  const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
+  if (!isSuperAdmin) throw new Error("Você não tem permissão para esta ação.");
+
+  return user.id;
+}
+
+/**
+ * Ativa/desativa uma conta via `ban_duration` do GoTrue — o Supabase Auth
+ * já bloqueia login sozinho enquanto `banned_until` estiver no futuro,
+ * então não precisa de nenhuma checagem extra em `middleware`/layout.
+ */
+export async function setUserActiveAction(userId: string, active: boolean): Promise<AdminActionResult> {
+  try {
+    const actorId = await requireSuperAdminActor();
+    if (!active && userId === actorId) {
+      return { success: false, message: "Você não pode desativar a sua própria conta." };
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: active ? "none" : "876000h",
+    });
+
+    if (error) {
+      logger.error("Falha ao alterar status do usuário", { error: error.message, userId });
+      return { success: false, message: "Não foi possível alterar o status do usuário." };
+    }
+
+    revalidatePath("/admin");
+    return { success: true, message: active ? "Usuário reativado." : "Usuário desativado." };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+/**
+ * Define uma nova senha para o usuário (reset administrativo — útil
+ * para suporte quando a pessoa perdeu acesso ao e-mail de recuperação).
+ */
+export async function setUserPasswordAction(
+  userId: string,
+  newPassword: string,
+): Promise<AdminActionResult> {
+  try {
+    await requireSuperAdminActor();
+
+    if (newPassword.length < 8) {
+      return { success: false, message: "A senha precisa ter pelo menos 8 caracteres." };
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(userId, { password: newPassword });
+
+    if (error) {
+      logger.error("Falha ao redefinir senha do usuário", { error: error.message, userId });
+      return { success: false, message: "Não foi possível redefinir a senha." };
+    }
+
+    revalidatePath("/admin");
+    return { success: true, message: "Senha atualizada." };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+/**
+ * Concede/revoga o papel de super admin da plataforma. Passa pelo
+ * cliente com service role de propósito — a coluna `profiles.is_super_admin`
+ * é protegida por trigger (`protect_is_super_admin`) contra qualquer
+ * update que não venha da service role, fechando a brecha onde
+ * `profiles_update_self` deixava qualquer usuário se auto-promover.
+ */
+export async function setUserSuperAdminAction(
+  userId: string,
+  isSuperAdmin: boolean,
+): Promise<AdminActionResult> {
+  try {
+    const actorId = await requireSuperAdminActor();
+    if (!isSuperAdmin && userId === actorId) {
+      return { success: false, message: "Você não pode remover seu próprio acesso de super admin." };
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin.from("profiles").update({ is_super_admin: isSuperAdmin }).eq("id", userId);
+
+    if (error) {
+      logger.error("Falha ao alterar papel de super admin", { error: error.message, userId });
+      return { success: false, message: "Não foi possível alterar o papel do usuário." };
+    }
+
+    revalidatePath("/admin");
+    return {
+      success: true,
+      message: isSuperAdmin ? "Usuário agora é super admin." : "Acesso de super admin removido.",
+    };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
 }
 
 export interface SystemLogRow {
