@@ -17,15 +17,34 @@ type Supabase = SupabaseClient<Database>;
 
 /**
  * Lista as organizações às quais o usuário autenticado pertence.
- * Depende exclusivamente de RLS (`organization_members_select_member` /
- * `organizations_select_member`) — nunca recebe `organization_id` como
- * parâmetro externo.
+ *
+ * **Correção de segurança (Fase 9)**: antes desta correção, a consulta
+ * não filtrava por `user_id` e dependia inteiramente da RLS
+ * (`members_select_org`: `is_org_member(organization_id)`) para
+ * "automaticamente" só trazer as próprias memberships — o que era
+ * verdade só por coincidência, para usuários comuns. A Fase 9 adicionou
+ * `members_select_super_admin` (`using (is_platform_super_admin())`),
+ * necessária para o painel `/admin` listar o owner de qualquer
+ * organização pendente — mas isso também passou a liberar, para um
+ * super admin, a leitura de **toda** `organization_members` aqui nesta
+ * função, fazendo a organização de outro usuário aparecer como se fosse
+ * a dele (reportado em produção: organização "Ask IA", de outra conta,
+ * aparecendo no dashboard/configurações do super admin). Corrigido
+ * filtrando explicitamente por `user_id` na própria query — nunca mais
+ * confiar só na RLS para esse recorte "é meu".
  */
 export async function listUserMemberships(supabase: Supabase): Promise<MembershipSummary[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("organization_members")
     .select("role, organization_id, organizations ( id, name, slug, approval_status )")
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("user_id", user.id);
 
   if (error) {
     logger.error("Falha ao listar memberships do usuário", {

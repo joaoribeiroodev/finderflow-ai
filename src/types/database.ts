@@ -571,6 +571,114 @@ export type Database = {
           },
         ]
       }
+      contract_asaas_customers: {
+        Row: {
+          asaas_customer_id: string
+          company_id: string
+          created_at: string
+          organization_id: string
+        }
+        Insert: {
+          asaas_customer_id: string
+          company_id: string
+          created_at?: string
+          organization_id: string
+        }
+        Update: {
+          asaas_customer_id?: string
+          company_id?: string
+          created_at?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_asaas_customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_asaas_customers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_charges: {
+        Row: {
+          asaas_charge_id: string
+          asaas_customer_id: string
+          bank_slip_url: string | null
+          billing_type: string
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          invoice_url: string | null
+          organization_id: string
+          pix_payload: string | null
+          status: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          asaas_charge_id: string
+          asaas_customer_id: string
+          bank_slip_url?: string | null
+          billing_type: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_url?: string | null
+          organization_id: string
+          pix_payload?: string | null
+          status?: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          asaas_charge_id?: string
+          asaas_customer_id?: string
+          bank_slip_url?: string | null
+          billing_type?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_url?: string | null
+          organization_id?: string
+          pix_payload?: string | null
+          status?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_charges_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_charges_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deals: {
         Row: {
           amount: number
