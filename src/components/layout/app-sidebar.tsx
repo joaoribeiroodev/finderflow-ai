@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck, Zap } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 import { NAV_SECTIONS } from "@/config/navigation";
+import { Logo } from "@/components/brand/logo";
 import { cn } from "@/lib/utils/cn";
 
 export function AppSidebar({
@@ -37,13 +38,8 @@ export function AppSidebar({
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <Link href="/dashboard" className="flex items-center gap-2.5 px-2 py-0.5 font-bold tracking-tight">
-          <span className="flex size-[34px] items-center justify-center rounded-[var(--ff-radius-md)] bg-[linear-gradient(135deg,var(--ff-purple-500),var(--ff-magenta))] text-white [box-shadow:var(--ff-shadow-glow-purple)]">
-            <Zap className="size-[18px]" aria-hidden />
-          </span>
-          <span>
-            FinderFlow <em className="font-normal text-[var(--ff-violet-glow)] not-italic">AI</em>
-          </span>
+        <Link href="/dashboard" className="flex items-center px-2 py-0.5">
+          <Logo size={34} />
         </Link>
 
         <nav className="flex flex-1 flex-col gap-6 overflow-y-auto">

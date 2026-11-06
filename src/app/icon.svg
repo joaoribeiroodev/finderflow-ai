@@ -1,0 +1,18 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ff-badge-gradient" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8b5cf6" />
+      <stop offset="1" stop-color="#d946ef" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#ff-badge-gradient)" />
+  <g transform="translate(4.4,4.4) scale(2.3)" stroke="#ffffff" stroke-width="1.8" fill="none">
+    <circle cx="10" cy="10" r="5.2" />
+    <path d="M13.7 13.7L18.3 18.3" stroke-linecap="round" />
+    <path
+      d="M17 3.9L17.42 5.58L19.1 6L17.42 6.42L17 8.1L16.58 6.42L14.9 6L16.58 5.58Z"
+      fill="#ffffff"
+      stroke="none"
+    />
+  </g>
+</svg>

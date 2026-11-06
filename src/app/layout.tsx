@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FinderFlow AI",
   description: "Plataforma SaaS de prospecção B2B, CRM e inteligência comercial com IA.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#150f23",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
