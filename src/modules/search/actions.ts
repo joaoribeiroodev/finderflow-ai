@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger/logger";
 
 export interface SearchResult {
   id: string;
-  kind: "company" | "lead";
+  kind: "company" | "lead" | "page";
   title: string;
   subtitle: string | null;
   href: string;
