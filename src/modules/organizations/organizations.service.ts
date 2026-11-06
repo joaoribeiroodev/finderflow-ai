@@ -3,13 +3,14 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { logger } from "@/lib/logger/logger";
-import type { Database, OrgRole } from "@/types/database";
+import type { ApprovalStatus, Database, OrgRole } from "@/types/database";
 
 export interface MembershipSummary {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
   role: OrgRole;
+  approvalStatus: ApprovalStatus;
 }
 
 type Supabase = SupabaseClient<Database>;
@@ -23,7 +24,7 @@ type Supabase = SupabaseClient<Database>;
 export async function listUserMemberships(supabase: Supabase): Promise<MembershipSummary[]> {
   const { data, error } = await supabase
     .from("organization_members")
-    .select("role, organization_id, organizations ( id, name, slug )")
+    .select("role, organization_id, organizations ( id, name, slug, approval_status )")
     .eq("status", "active");
 
   if (error) {
@@ -38,7 +39,7 @@ export async function listUserMemberships(supabase: Supabase): Promise<Membershi
       (
         row,
       ): row is typeof row & {
-        organizations: { id: string; name: string; slug: string };
+        organizations: { id: string; name: string; slug: string; approval_status: string };
       } => row.organizations !== null,
     )
     .map((row) => ({
@@ -46,7 +47,23 @@ export async function listUserMemberships(supabase: Supabase): Promise<Membershi
       organizationName: row.organizations.name,
       organizationSlug: row.organizations.slug,
       role: row.role,
+      approvalStatus: row.organizations.approval_status as ApprovalStatus,
     }));
+}
+
+/**
+ * Indica se o usuário autenticado é super admin da plataforma (Fase 9) —
+ * acesso liberado a todas as organizações e ao painel /admin,
+ * independente do approval_status da própria organização. Nunca lança:
+ * sem sessão ou sem profile, retorna `false`.
+ */
+export async function isCurrentUserSuperAdmin(supabase: Supabase): Promise<boolean> {
+  const { data, error } = await supabase.rpc("is_platform_super_admin");
+  if (error) {
+    logger.error("Falha ao verificar super admin", { error: error.message });
+    return false;
+  }
+  return Boolean(data);
 }
 
 /**

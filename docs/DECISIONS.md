@@ -654,3 +654,124 @@ existe.
 
 Testes: +3 casos em `minha-receita-provider.test.ts` (sucesso, 404 →
 null, 429 com retry e erro claro) — 211/211 testes passando no total.
+
+## Fase 9 — aprovação manual de contas, super admin, segurança de login,
+## credenciais Asaas/OpenAI por organização e remoção de planos
+
+Pedido explícito do usuário (reconstrução de decisão de produto já em
+produção): o cadastro público sem controle, a confirmação de e-mail
+como único portão de acesso, o billing do próprio FinderFlow sobre seus
+usuários (planos Starter/Pro via Asaas) e a chave Asaas/OpenAI global
+(só do dono do sistema) deixam de existir. Decisões confirmadas com o
+usuário antes de implementar (`AskUserQuestion`):
+
+1. **Limite mensal de IA ligado a plano**: removido. Cada organização
+   paga direto na própria conta OpenAI; `assertWithinQuota` (`src/lib/ai/quota.ts`)
+   não lança mais `AIQuotaExceededError` — a contagem continua existindo
+   só para telemetria/dashboard.
+2. **Confirmação de e-mail do Supabase**: o usuário desativa o toggle
+   "Confirm email" no próprio painel do Supabase (não existe API/MCP
+   para isso) — `registerAction` já trata os dois casos (sessão ativa
+   na hora → direto pro onboarding; sessão ausente → fluxo antigo de
+   e-mail, como fallback enquanto o toggle não for desativado).
+3. **Contas já existentes**: todas (inclusive as de teste já criadas em
+   produção) ficam `pending` como qualquer conta nova — exceto a conta
+   super admin do próprio usuário, que tem acesso liberado independente
+   do approval_status da organização.
+4. **Código de billing antigo** (`src/modules/billing`, `src/lib/billing`,
+   `src/components/billing`, páginas `/billing`, webhook de assinatura,
+   job de reconciliação): removido por completo, não só desativado.
+
+### Super admin de plataforma
+
+Problema: o e-mail do dono do sistema (`jpeddro0706@gmail.com`) ainda
+não tinha conta neste projeto Supabase quando a migration foi escrita —
+não dá pra simplesmente `UPDATE profiles SET is_super_admin = true
+WHERE id = ...` porque a linha não existe ainda. Resolvido com uma
+tabela de bootstrap `platform_admin_emails` (sem policies — só lida
+pelo trigger) + `handle_new_auth_user` atualizado: todo profile novo já
+nasce com `is_super_admin = true` se o e-mail bater com a lista: cobre
+tanto o caso "conta já existe" (backfill de UPDATE na própria migration)
+quanto "conta ainda vai ser criada" (o trigger cuida na hora do signup).
+`is_platform_super_admin()` (SQL, security definer) expõe isso para RLS
+e para o app.
+
+### Aprovação manual de organizações
+
+`organizations.approval_status` (`pending` por default | `approved` |
+`rejected`) substitui a confirmação de e-mail como controle de acesso.
+Gate único, no nível mais alto possível: `(workspace)/layout.tsx`
+redireciona para `/pending-approval` quando a organização ativa não
+está aprovada — super admin nunca é bloqueado aqui. `/admin` (fora do
+grupo `(workspace)` de propósito — um super admin precisa aprovar
+organizações mesmo que a própria esteja pendente) lista e permite
+aprovar/rejeitar; a autorização real é a RLS policy
+`organizations_update_super_admin`, não uma checagem manual duplicada
+na Server Action.
+
+### Segurança de login: rate limit + lockout temporário
+
+`auth_login_attempts` (sem policies — mesmo padrão de `audit_logs`: só
+o cliente admin/service role lê/escreve) grava toda tentativa de login
+(sucesso ou falha) por e-mail. 5 falhas em 15 minutos bloqueiam novas
+tentativas por até 15 minutos **sem nem chamar o Supabase Auth**
+(`src/lib/auth/login-security.ts`). Importante: depende de
+`SUPABASE_SERVICE_ROLE_KEY` — como essa chave ainda não estava
+configurada neste ambiente no momento da implementação, o módulo
+degrada para "nunca bloqueia" em vez de quebrar o login (mesmo
+princípio já estabelecido para `OPENAI_API_KEY`/`ASAAS_*`: lazy, nunca
+exigido no boot). Isso é adicional ao rate limit por IP que já existia
+em `src/lib/security/rate-limit.ts` (`proxy.ts`) — um é por e-mail
+(alvo), o outro por IP (origem); os dois ficam.
+
+### Credenciais Asaas/OpenAI configuráveis por organização
+
+Decisão de arquitetura: nunca guardar a chave em texto puro numa tabela
+normal. O projeto já tinha a extensão `supabase_vault` instalada
+(verificado com `list_extensions` antes de desenhar a solução — zero
+custo adicional, zero serviço novo para configurar). Desenho:
+
+- `organization_integration_credentials` guarda só metadados
+  (ambiente Asaas, modelo OpenAI, `*_configured_at`) + o **id** do
+  secret no Vault — nunca o valor.
+- `set_org_asaas_credentials` / `set_org_openai_credentials` /
+  `clear_org_*_credentials` (SQL, security definer): validam
+  `can_admin_org()` (owner/admin da organização) antes de escrever no
+  Vault — chamáveis por `authenticated`.
+- `get_org_asaas_api_key` / `get_org_openai_api_key`: só decriptam o
+  valor puro, e só são chamáveis por `service_role` — nunca
+  `authenticated`, nunca `anon`. A chave jamais transita por uma query
+  client-side.
+- **Achado durante a implementação**: `revoke ... from public` sozinho
+  **não** bastou para essas funções — este projeto Supabase já tem
+  default privileges que concedem `EXECUTE` a `anon` explicitamente na
+  criação de qualquer função em `public`. Confirmado consultando
+  `pg_proc.proacl` diretamente (o advisor de segurança generalizado
+  também apontou). Corrigido com `revoke execute ... from anon`
+  explícito em cada função sensível — revalidado consultando
+  `pg_proc.proacl` de novo depois.
+- OpenAI por organização já está ligado em `src/lib/ai/engine.ts` via
+  `resolveOpenAiCredentialsForOrganization` (`src/lib/ai/org-credentials.ts`):
+  prioriza a chave da própria organização, cai para a chave global do
+  ambiente se a organização não configurou a própria, e para
+  "não configurado" se nenhuma das duas existir. Asaas por organização
+  tem a função de leitura pronta (`get_org_asaas_api_key`) mas a
+  implementação do provider HTTP (criar cliente/cobrança/link) ainda
+  não foi escrita — ver próxima seção.
+
+### Aba "Contratos" — ainda não implementada
+
+A tela em `/contracts` (nav item "Contratos", Fase 9) é por ora um
+placeholder (`ComingSoon`) — a base (credenciais por organização,
+leitura server-side segura) está pronta, mas criar clientes/cobranças/
+boletos/links de pagamento na API da Asaas usando a chave de **cada
+organização** é uma superfície de API diferente da que o
+`AsaasProvider` antigo (removido) cobria (aquele era só assinatura/
+checkout da própria plataforma). Fica como próximo passo explícito, não
+como algo esquecido.
+
+### Testes
+
+195/195 passando (211 anteriores − os testes de `entitlements.ts`/
+`status.ts` removidos junto com o billing antigo). `next build` e
+`eslint` limpos.

@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger/logger";
 import type { Database } from "@/types/database";
 
 import { getAIProvider } from "./openai-provider";
+import { resolveOpenAiCredentialsForOrganization } from "./org-credentials";
 import { estimateCostUsd } from "./pricing";
 import type { AIResult, AIResultStatus, ConversationInput, ConversationResult, StructuredAIInput } from "./provider";
 import { assertWithinQuota } from "./quota";
@@ -43,7 +44,8 @@ export async function runStructuredAI<T>(
 ): Promise<AIResult<T>> {
   await assertWithinQuota(supabase, organizationId);
 
-  const provider = getAIProvider();
+  const credentials = await resolveOpenAiCredentialsForOrganization(organizationId);
+  const provider = getAIProvider(credentials ?? undefined);
   const result = await provider.generateStructured(input);
 
   let finalStatus: AIResultStatus = result.status;
@@ -121,7 +123,8 @@ export async function runConversationTurn(
 ): Promise<ConversationResult> {
   await assertWithinQuota(supabase, organizationId);
 
-  const provider = getAIProvider();
+  const credentials = await resolveOpenAiCredentialsForOrganization(organizationId);
+  const provider = getAIProvider(credentials ?? undefined);
   const result = await provider.respond(input);
 
   const estimatedCost = estimateCostUsd(result.model, result.usage.inputTokens, result.usage.outputTokens);

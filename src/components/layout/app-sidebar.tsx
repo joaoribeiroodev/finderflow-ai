@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap } from "lucide-react";
+import { ShieldCheck, Zap } from "lucide-react";
 
 import { NAV_SECTIONS } from "@/config/navigation";
 import { cn } from "@/lib/utils/cn";
@@ -10,9 +10,11 @@ import { cn } from "@/lib/utils/cn";
 export function AppSidebar({
   mobileOpen,
   onClose,
+  isSuperAdmin = false,
 }: {
   mobileOpen: boolean;
   onClose: () => void;
+  isSuperAdmin?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -80,6 +82,30 @@ export function AppSidebar({
               </div>
             </div>
           ))}
+
+          {isSuperAdmin ? (
+            <div>
+              <p className="mb-2 px-3 text-[10px] font-bold tracking-widest text-[var(--ff-text-muted)] uppercase">
+                Plataforma
+              </p>
+              <div className="grid gap-1">
+                <Link
+                  href="/admin"
+                  onClick={onClose}
+                  aria-current={pathname.startsWith("/admin") ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-[var(--ff-radius-sm)] px-3 py-2.5 text-sm text-[var(--ff-text-secondary)] transition-colors duration-150",
+                    "hover:bg-[#201832] hover:text-white",
+                    pathname.startsWith("/admin") &&
+                      "bg-[linear-gradient(90deg,rgba(109,40,217,0.2),rgba(139,92,246,0.13))] text-white shadow-[inset_2px_0_0_var(--ff-purple-500)]",
+                  )}
+                >
+                  <ShieldCheck className="size-[18px] text-[var(--ff-violet-glow)]" aria-hidden />
+                  Painel admin
+                </Link>
+              </div>
+            </div>
+          ) : null}
         </nav>
       </aside>
     </>

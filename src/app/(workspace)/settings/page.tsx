@@ -3,10 +3,15 @@ import { Building2, Shield, Users, Plug, Lock } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
+import {
+  AsaasCredentialsForm,
+  OpenAiCredentialsForm,
+} from "@/components/settings/integration-credentials-form";
 
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
 
@@ -47,6 +52,11 @@ export default async function SettingsPage() {
       ? await supabase.from("profiles").select("id, full_name").in("id", memberUserIds)
       : { data: [] as { id: string; full_name: string | null }[] };
   const fullNameByUserId = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  const integrationStatus = await getOrganizationIntegrationStatus(
+    supabase,
+    activeOrganization.organizationId,
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -127,13 +137,16 @@ export default async function SettingsPage() {
               <Plug className="size-4 text-[var(--ff-violet-glow)]" aria-hidden /> Integrações
             </span>
           }
-          subtitle="OpenAI, Asaas e provedores de empresas"
-          action={<Badge variant="outline">Fases 3/5/6</Badge>}
+          subtitle="Cada organização usa sua própria conta — nenhuma chave é compartilhada entre organizações"
         />
-        <p className="text-sm text-[var(--ff-text-secondary)]">
-          A configuração de provedores de dados de empresas, modelo de IA e cobrança será
-          habilitada conforme essas fases forem implementadas.
-        </p>
+        <AsaasCredentialsForm
+          configured={integrationStatus.asaasConfigured}
+          environment={integrationStatus.asaasEnvironment}
+        />
+        <OpenAiCredentialsForm
+          configured={integrationStatus.openaiConfigured}
+          model={integrationStatus.openaiModel}
+        />
       </Card>
 
       <Card>

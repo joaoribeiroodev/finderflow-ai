@@ -23,43 +23,17 @@ const RATE_LIMITS: Array<{ test: (pathname: string, method: string) => boolean; 
     limit: 10,
     windowMs: 60_000,
   },
-  {
-    // Webhook do Asaas: a entrega "at least once" pode reenviar o mesmo
-    // evento várias vezes em pouco tempo — limite alto, só para conter um
-    // flood anômalo, nunca para rejeitar retries legítimos.
-    label: "asaas-webhook",
-    test: (pathname, method) => method === "POST" && pathname === "/api/v1/webhooks/asaas",
-    limit: 120,
-    windowMs: 60_000,
-  },
-  {
-    // Job de reconciliação: só deveria ser chamado por um scheduler
-    // interno (protegido por CRON_SECRET) — nunca deveria passar de
-    // poucas chamadas por minuto.
-    label: "billing-sync-job",
-    test: (pathname, method) => method === "POST" && pathname === "/api/v1/jobs/billing-sync",
-    limit: 10,
-    windowMs: 60_000,
-  },
 ];
 
 /**
  * Toda rota de API (`/api/**`) faz sua própria autenticação — sessão de
  * usuário quando aplicável (`createClient()` dentro do Route Handler), ou
- * um segredo próprio quando não há usuário (webhook do Asaas validado
- * pelo header `asaas-access-token`; job de reconciliação validado por
- * `CRON_SECRET` — Fase 6). Redirecionar uma chamada de API não
- * autenticada para `/login` (uma página HTML) nunca é correto: o Asaas
- * receberia um 307 para uma página de login em vez de qualquer resposta
- * JSON, e passaria a reentregar o evento indefinidamente sem jamais
- * alcançar o handler.
- *
- * **Achado durante a implementação da Fase 6** (nunca chegou a produção,
- * pego pelo QA real de build de produção): esta função já existia com um
- * prefixo público (`/api/billing/webhooks`) antecipado desde a Fase 0/1,
- * mas o caminho real implementado (`/api/v1/webhooks/asaas`,
- * `/api/v1/jobs/billing-sync`) não batia com ele — o webhook teria sido
- * silenciosamente redirecionado para `/login` em vez de processado. Em
+ * um segredo próprio quando não há usuário (webhooks de integrações
+ * externas, jobs agendados validados por `CRON_SECRET`).
+ * Redirecionar uma chamada de API não autenticada para `/login` (uma
+ * página HTML) nunca é correto: um webhook receberia um 307 para uma
+ * página de login em vez de qualquer resposta JSON, e passaria a
+ * reentregar o evento indefinidamente sem jamais alcançar o handler. Em
  * vez de listar cada rota de API uma a uma (frágil a cada nova rota),
  * excluímos `/api/` inteiro do redirect — cada Route Handler já é
  * responsável pela própria autorização.

@@ -16,18 +16,24 @@ export function WorkspaceShell({
   activeOrganization,
   memberships,
   userEmail,
+  isSuperAdmin = false,
   children,
 }: {
   activeOrganization: MembershipSummary;
   memberships: MembershipSummary[];
   userEmail: string | null;
+  isSuperAdmin?: boolean;
   children: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-[var(--ff-bg-canvas)]">
-      <AppSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <AppSidebar
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        isSuperAdmin={isSuperAdmin}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           activeOrganization={activeOrganization}

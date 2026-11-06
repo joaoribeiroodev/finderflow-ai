@@ -96,16 +96,20 @@ export async function getAIQuotaStatus(
 }
 
 /**
- * Verifica a quota e lança `AIQuotaExceededError` se esgotada. Chamado
- * pelo `AIEngine` antes de qualquer chamada ao provedor de IA.
+ * Verifica a quota antes de qualquer chamada ao provedor de IA.
+ *
+ * Fase 9 (docs/DECISIONS.md): o limite mensal amarrado a "plano" foi
+ * removido — cada organização passa a configurar sua própria chave
+ * OpenAI (`organization_integration_credentials`) e paga diretamente na
+ * própria conta, então não há mais motivo para o FinderFlow bloquear
+ * uso. Mantemos a contagem (`getAIQuotaStatus`) só para telemetria/
+ * dashboard; `assertWithinQuota` nunca mais lança `AIQuotaExceededError`
+ * (classe mantida pelo código que ainda a captura como tratamento de
+ * erro defensivo).
  */
 export async function assertWithinQuota(
   supabase: Supabase,
   organizationId: string,
 ): Promise<AIQuotaStatus> {
-  const status = await getAIQuotaStatus(supabase, organizationId);
-  if (status.remaining <= 0) {
-    throw new AIQuotaExceededError(status.limit, status.used);
-  }
-  return status;
+  return getAIQuotaStatus(supabase, organizationId);
 }

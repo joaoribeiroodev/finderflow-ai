@@ -9,7 +9,7 @@ import {
   Wrench,
   FileText,
   BarChart3,
-  CreditCard,
+  Receipt,
   Settings,
 } from "lucide-react";
 
@@ -54,7 +54,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Conta",
     items: [
-      { href: "/billing", label: "Assinatura", icon: CreditCard },
+      { href: "/contracts", label: "Contratos", icon: Receipt, comingInPhase: 9 },
       { href: "/settings", label: "Configurações", icon: Settings },
     ],
   },

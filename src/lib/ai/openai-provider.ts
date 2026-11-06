@@ -255,27 +255,40 @@ function classifyError(error: unknown): { status: AIResultStatus; message: strin
   return { status: "failed", message: "Falha inesperada ao chamar a IA." };
 }
 
-let cachedProvider: AIProvider | null = null;
+let cachedGlobalProvider: AIProvider | null = null;
 
 /**
  * Fábrica do provider de IA, no mesmo espírito de
  * `getBusinessDataProvider()` (Fase 3): a OpenAI já é o provedor
- * oficial decidido (docs/05-integrations.md), então diferente do caso
- * de dados empresariais (onde o provedor em si ainda era uma decisão
- * pendente), aqui o único "não configurado" possível é a ausência da
- * credencial neste ambiente — nunca simulamos uma resposta.
+ * oficial decidido (docs/05-integrations.md).
+ *
+ * Fase 9 (ver docs/DECISIONS.md): cada organização pode configurar sua
+ * própria chave OpenAI (Configurações → Integrações, guardada no Vault);
+ * quando `override` vem preenchido (resolvido por
+ * `resolveOpenAiCredentialsForOrganization`), construímos um provider
+ * dedicado para aquela chamada — nunca cacheado globalmente, já que a
+ * credencial varia por organização. Sem override (org não configurou
+ * chave própria), cai no comportamento anterior: credencial global do
+ * ambiente, cacheada uma única vez.
  */
-export function getAIProvider(): AIProvider {
-  if (cachedProvider) return cachedProvider;
+export function getAIProvider(override?: { apiKey: string; model?: string | null }): AIProvider {
+  if (override) {
+    return new OpenAIProvider(override.apiKey, override.model ?? "gpt-4.1-mini");
+  }
+
+  if (cachedGlobalProvider) return cachedGlobalProvider;
 
   const env = getServerEnv();
   if (!isOpenAiConfigured(env)) {
-    cachedProvider = new NotConfiguredAIProvider();
-    return cachedProvider;
+    cachedGlobalProvider = new NotConfiguredAIProvider();
+    return cachedGlobalProvider;
   }
 
-  cachedProvider = new OpenAIProvider(env.OPENAI_API_KEY!, env.OPENAI_DEFAULT_MODEL ?? "gpt-4.1-mini");
-  return cachedProvider;
+  cachedGlobalProvider = new OpenAIProvider(
+    env.OPENAI_API_KEY!,
+    env.OPENAI_DEFAULT_MODEL ?? "gpt-4.1-mini",
+  );
+  return cachedGlobalProvider;
 }
 
 export { AIProviderNotConfiguredError };

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveActiveOrganization } from "@/modules/organizations/active-organization";
+import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import { WorkspaceShell } from "@/components/layout/workspace-shell";
 
 /**
@@ -27,11 +28,21 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     redirect("/onboarding");
   }
 
+  const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
+
+  // Fase 9: aprovação manual substitui a confirmação de e-mail como
+  // controle de acesso. Super admin da plataforma nunca é bloqueado,
+  // mesmo que a própria organização esteja pendente.
+  if (!isSuperAdmin && activeOrganization.approvalStatus !== "approved") {
+    redirect("/pending-approval");
+  }
+
   return (
     <WorkspaceShell
       activeOrganization={activeOrganization}
       memberships={memberships}
       userEmail={user.email ?? null}
+      isSuperAdmin={isSuperAdmin}
     >
       {children}
     </WorkspaceShell>

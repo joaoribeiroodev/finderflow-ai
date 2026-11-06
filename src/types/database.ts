@@ -11,6 +11,7 @@
  * conveniência ao final do arquivo).
  */
 
+
 export type Json =
   | string
   | number
@@ -318,6 +319,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      auth_login_attempts: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          succeeded: boolean
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          succeeded: boolean
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          succeeded?: boolean
+        }
+        Relationships: []
       }
       billing_payments: {
         Row: {
@@ -996,6 +1018,47 @@ export type Database = {
           },
         ]
       }
+      organization_integration_credentials: {
+        Row: {
+          asaas_configured_at: string | null
+          asaas_environment: string
+          asaas_secret_id: string | null
+          openai_configured_at: string | null
+          openai_model: string | null
+          openai_secret_id: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          asaas_configured_at?: string | null
+          asaas_environment?: string
+          asaas_secret_id?: string | null
+          openai_configured_at?: string | null
+          openai_model?: string | null
+          openai_secret_id?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          asaas_configured_at?: string | null
+          asaas_environment?: string
+          asaas_secret_id?: string | null
+          openai_configured_at?: string | null
+          openai_model?: string | null
+          openai_secret_id?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_integration_credentials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1105,6 +1168,10 @@ export type Database = {
       }
       organizations: {
         Row: {
+          approval_notes: string | null
+          approval_reviewed_at: string | null
+          approval_reviewed_by: string | null
+          approval_status: string
           billing_document: string | null
           billing_email: string | null
           billing_name: string | null
@@ -1117,6 +1184,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approval_notes?: string | null
+          approval_reviewed_at?: string | null
+          approval_reviewed_by?: string | null
+          approval_status?: string
           billing_document?: string | null
           billing_email?: string | null
           billing_name?: string | null
@@ -1129,6 +1200,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approval_notes?: string | null
+          approval_reviewed_at?: string | null
+          approval_reviewed_by?: string | null
+          approval_status?: string
           billing_document?: string | null
           billing_email?: string | null
           billing_name?: string | null
@@ -1222,12 +1297,25 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_admin_emails: {
+        Row: {
+          email: string
+        }
+        Insert: {
+          email: string
+        }
+        Update: {
+          email?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
           full_name: string | null
           id: string
+          is_super_admin: boolean
           updated_at: string
         }
         Insert: {
@@ -1235,6 +1323,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          is_super_admin?: boolean
           updated_at?: string
         }
         Update: {
@@ -1242,6 +1331,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_super_admin?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -1590,6 +1680,14 @@ export type Database = {
           processing_status: string
         }[]
       }
+      clear_org_asaas_credentials: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
+      clear_org_openai_credentials: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
       count_ai_usage_in_period: {
         Args: {
           p_organization_id: string
@@ -1625,6 +1723,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_org_asaas_api_key: { Args: { p_org: string }; Returns: string }
+      get_org_openai_api_key: { Args: { p_org: string }; Returns: string }
       has_org_role: {
         Args: {
           allowed_roles: Database["public"]["Enums"]["org_role"][]
@@ -1633,6 +1733,7 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { target_org: string }; Returns: boolean }
+      is_platform_super_admin: { Args: never; Returns: boolean }
       log_ai_usage: {
         Args: {
           p_duration_ms: number
@@ -1703,6 +1804,14 @@ export type Database = {
       }
       reorder_pipeline_stages: {
         Args: { p_ordered_ids: string[]; p_organization_id: string }
+        Returns: undefined
+      }
+      set_org_asaas_credentials: {
+        Args: { p_api_key: string; p_environment: string; p_org: string }
+        Returns: undefined
+      }
+      set_org_openai_credentials: {
+        Args: { p_api_key: string; p_model?: string; p_org: string }
         Returns: undefined
       }
       shares_org_with: { Args: { target_user: string }; Returns: boolean }
@@ -1874,3 +1983,4 @@ export const Constants = {
  */
 export type OrgRole = Database["public"]["Enums"]["org_role"]
 export type MemberStatus = "invited" | "active" | "suspended"
+export type ApprovalStatus = "pending" | "approved" | "rejected"
