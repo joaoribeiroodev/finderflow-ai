@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import { notifyUsers } from "@/modules/notifications/notifications.service";
+import { logAudit } from "@/lib/audit/audit-log";
 import type { ApprovalStatus } from "@/types/database";
 
 export interface OrganizationReviewRow {
@@ -132,6 +133,14 @@ async function reviewOrganization(organizationId: string, decision: "approved" |
   if (!data || data.length === 0) {
     throw new Error("Você não tem permissão para revisar organizações.");
   }
+
+  await logAudit({
+    organizationId,
+    actorId: user.id,
+    action: decision === "approved" ? "organization.approve" : "organization.reject",
+    resourceType: "organizations",
+    resourceId: organizationId,
+  });
 
   // Notifica os membros ativos da organização revisada — melhor esforço,
   // nunca bloqueia a aprovação/rejeição em si se falhar.

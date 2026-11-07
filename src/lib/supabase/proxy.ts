@@ -2,17 +2,22 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getServerEnv } from "@/lib/env/env.server";
-import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
+import { clientIp } from "@/lib/security/rate-limit";
+import { checkDistributedRateLimit } from "@/lib/security/distributed-rate-limit";
 import type { Database } from "@/types/database";
 
 const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/recovery", "/auth"];
 
 /**
- * Rate limiting (fase 8, hardening) — best-effort em memória, ver
- * src/lib/security/rate-limit.ts para a limitação conhecida em ambiente
- * multi-instância. Limites deliberadamente generosos para não travar uso
- * legítimo; o objetivo aqui é impedir abuso trivial de força bruta/flood,
- * não ser uma defesa de produção completa (WAF/rate limiting de borda).
+ * Rate limiting (fase 8, hardening; distribuído desde a fase 10 — ver
+ * ETAPA-0-AUDITORIA.md seção 5 risco #5). `checkDistributedRateLimit`
+ * usa um contador real no Postgres (consistente entre instâncias/regiões
+ * da Vercel) e só cai de volta no contador em memória de
+ * src/lib/security/rate-limit.ts se o banco estiver inacessível —
+ * nunca bloqueia login legítimo por causa disso. Limites deliberadamente
+ * generosos para não travar uso legítimo; o objetivo aqui é impedir
+ * abuso trivial de força bruta/flood, não ser uma defesa de produção
+ * completa (WAF/rate limiting de borda).
  */
 const RATE_LIMITS: Array<{ test: (pathname: string, method: string) => boolean; limit: number; windowMs: number; label: string }> = [
   {
@@ -60,7 +65,7 @@ export async function updateSession(request: NextRequest) {
   for (const rule of RATE_LIMITS) {
     if (!rule.test(pathname, method)) continue;
     const key = `${rule.label}:${clientIp(request)}`;
-    const result = checkRateLimit(key, rule.limit, rule.windowMs);
+    const result = await checkDistributedRateLimit(key, rule.limit, rule.windowMs);
     if (!result.allowed) {
       return new NextResponse(JSON.stringify({ error: "too_many_requests" }), {
         status: 429,

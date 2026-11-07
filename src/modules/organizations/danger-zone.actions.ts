@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { logger } from "@/lib/logger/logger";
+import { logAudit } from "@/lib/audit/audit-log";
 
 export interface DeleteOrganizationResult {
   success: boolean;
@@ -35,6 +36,9 @@ export async function deleteOrganizationAction(
 
   const supabase = await createClient();
   const { organizationId, organizationSlug, role } = await requireActiveOrganization();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (role !== "owner") {
     return { success: false, message: "Só o proprietário da organização pode excluí-la." };
@@ -71,6 +75,19 @@ export async function deleteOrganizationAction(
     logger.error("Falha ao excluir organização", { error: error.message, organizationId });
     return { success: false, message: "Não foi possível excluir a organização." };
   }
+
+  // Logado depois do cascade (não antes): `organization_id` em
+  // `audit_logs` tem `on delete set null`, não cascade, então o registro
+  // sobrevive à exclusão — mas só queremos registrar sucesso se o rpc
+  // realmente teve sucesso.
+  await logAudit({
+    organizationId,
+    actorId: user?.id ?? null,
+    action: "organization.delete",
+    resourceType: "organizations",
+    resourceId: organizationId,
+    metadata: { organizationSlug },
+  });
 
   redirect("/onboarding");
 }

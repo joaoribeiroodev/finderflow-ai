@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { isValidCnpj } from "@/lib/utils/normalize";
 import { logger } from "@/lib/logger/logger";
+import { logAudit } from "@/lib/audit/audit-log";
 import {
   asaasBaseUrlFor,
   createAsaasCharge,
@@ -88,6 +89,9 @@ export async function createChargeAction(
 
   const org = await requireActiveOrganization();
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const credentials = await resolveOrgAsaasCredentials(org.organizationId);
   if (!credentials) {
@@ -165,10 +169,6 @@ export async function createChargeAction(
       pixPayload = pix.payload;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
     const { error: insertError } = await supabase.from("contract_charges").insert({
       organization_id: org.organizationId,
       company_id: companyId,
@@ -204,6 +204,15 @@ export async function createChargeAction(
       message: (error as Error).message || "Não foi possível criar a cobrança na Asaas.",
     };
   }
+
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "contract_charge.create",
+    resourceType: "contract_charges",
+    resourceId: companyId,
+    metadata: { billingType, value },
+  });
 
   revalidatePath("/contracts");
   return { success: true, message: "Cobrança criada com sucesso." };

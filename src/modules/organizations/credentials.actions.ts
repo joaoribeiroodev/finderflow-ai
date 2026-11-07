@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { logger } from "@/lib/logger/logger";
+import { logAudit } from "@/lib/audit/audit-log";
 
 export interface CredentialsActionResult {
   success: boolean;
@@ -49,6 +50,17 @@ export async function saveAsaasCredentialsAction(
     };
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "integration_credentials.set",
+    resourceType: "organization_integration_credentials",
+    metadata: { provider: "asaas", environment },
+  });
+
   revalidatePath("/settings");
   return { success: true, message: "Chave da Asaas salva com sucesso." };
 }
@@ -61,6 +73,17 @@ export async function clearAsaasCredentialsAction(): Promise<void> {
     logger.error("Falha ao remover credenciais Asaas da organização", {
       error: error.message,
       organizationId: org.organizationId,
+    });
+  } else {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await logAudit({
+      organizationId: org.organizationId,
+      actorId: user?.id ?? null,
+      action: "integration_credentials.clear",
+      resourceType: "organization_integration_credentials",
+      metadata: { provider: "asaas" },
     });
   }
   revalidatePath("/settings");
@@ -97,6 +120,17 @@ export async function saveOpenAiCredentialsAction(
     };
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "integration_credentials.set",
+    resourceType: "organization_integration_credentials",
+    metadata: { provider: "openai" },
+  });
+
   revalidatePath("/settings");
   return { success: true, message: "Chave da OpenAI salva com sucesso." };
 }
@@ -109,6 +143,17 @@ export async function clearOpenAiCredentialsAction(): Promise<void> {
     logger.error("Falha ao remover credenciais OpenAI da organização", {
       error: error.message,
       organizationId: org.organizationId,
+    });
+  } else {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await logAudit({
+      organizationId: org.organizationId,
+      actorId: user?.id ?? null,
+      action: "integration_credentials.clear",
+      resourceType: "organization_integration_credentials",
+      metadata: { provider: "openai" },
     });
   }
   revalidatePath("/settings");
@@ -154,6 +199,17 @@ export async function saveGmailCredentialsAction(
     };
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "integration_credentials.set",
+    resourceType: "organization_integration_credentials",
+    metadata: { provider: "gmail" },
+  });
+
   revalidatePath("/settings");
   return { success: true, message: "Conta Gmail conectada com sucesso." };
 }
@@ -166,6 +222,17 @@ export async function clearGmailCredentialsAction(): Promise<void> {
     logger.error("Falha ao remover credenciais Gmail da organização", {
       error: error.message,
       organizationId: org.organizationId,
+    });
+  } else {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await logAudit({
+      organizationId: org.organizationId,
+      actorId: user?.id ?? null,
+      action: "integration_credentials.clear",
+      resourceType: "organization_integration_credentials",
+      metadata: { provider: "gmail" },
     });
   }
   revalidatePath("/settings");

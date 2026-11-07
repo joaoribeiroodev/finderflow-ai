@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Building2, Download, Shield, Users, Plug, Lock, IdCard } from "lucide-react";
+import { Building2, Download, Shield, ShieldOff, Users, Plug, Lock, IdCard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { getOrganizationProfile } from "@/modules/organizations/profile.service";
+import { listSuppressionEntries } from "@/modules/suppression/suppression.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
@@ -17,6 +18,7 @@ import { OrganizationProfileForm } from "@/components/settings/organization-prof
 import { Button } from "@/components/ui/button";
 import { DangerZone } from "@/components/settings/danger-zone";
 import { TeamMembers } from "@/components/settings/team-members";
+import { SuppressionList } from "@/components/settings/suppression-list";
 
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
 
@@ -50,9 +52,10 @@ export default async function SettingsPage() {
       : { data: [] as { id: string; full_name: string | null }[] };
   const fullNameByUserId = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
 
-  const [integrationStatus, organizationProfile] = await Promise.all([
+  const [integrationStatus, organizationProfile, suppressionEntries] = await Promise.all([
     getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
     getOrganizationProfile(supabase, activeOrganization.organizationId),
+    listSuppressionEntries(supabase, activeOrganization.organizationId),
   ]);
 
   const {
@@ -159,6 +162,21 @@ export default async function SettingsPage() {
         <GmailCredentialsForm
           configured={integrationStatus.gmailConfigured}
           email={integrationStatus.gmailEmail}
+        />
+      </Card>
+
+      <Card>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <ShieldOff className="size-4 text-[var(--ff-violet-glow)]" aria-hidden /> Lista de supressão
+            </span>
+          }
+          subtitle="Contatos que pediram para não ser abordados — nenhuma campanha ou cadência pode contatá-los"
+        />
+        <SuppressionList
+          entries={suppressionEntries}
+          canManage={activeOrganization.role === "owner" || activeOrganization.role === "admin"}
         />
       </Card>
 

@@ -1696,6 +1696,24 @@ export type Database = {
           },
         ]
       }
+      rate_limit_counters: {
+        Row: {
+          count: number
+          key: string
+          reset_at: string
+        }
+        Insert: {
+          count?: number
+          key: string
+          reset_at: string
+        }
+        Update: {
+          count?: number
+          key?: string
+          reset_at?: string
+        }
+        Relationships: []
+      }
       search_results: {
         Row: {
           attribution: Json
@@ -1857,6 +1875,50 @@ export type Database = {
           },
         ]
       }
+      suppression_entries: {
+        Row: {
+          contact_type: string
+          contact_value: string
+          created_at: string
+          created_by: string | null
+          id: string
+          normalized_value: string | null
+          organization_id: string
+          reason: string
+          source: string | null
+        }
+        Insert: {
+          contact_type: string
+          contact_value: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          normalized_value?: string | null
+          organization_id: string
+          reason?: string
+          source?: string | null
+        }
+        Update: {
+          contact_type?: string
+          contact_value?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          normalized_value?: string | null
+          organization_id?: string
+          reason?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppression_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_error_logs: {
         Row: {
           context: Json
@@ -1942,6 +2004,14 @@ export type Database = {
     Functions: {
       can_admin_org: { Args: { target_org: string }; Returns: boolean }
       can_edit_org: { Args: { target_org: string }; Returns: boolean }
+      check_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          reset_at: string
+        }[]
+      }
       claim_asaas_webhook_event: {
         Args: {
           p_event_type: string
@@ -1954,6 +2024,31 @@ export type Database = {
           event_id: string
           processing_status: string
         }[]
+      }
+      claim_next_job: {
+        Args: { p_job_types?: string[]; p_worker?: string }
+        Returns: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          organization_id: string | null
+          payload: Json
+          run_after: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       clear_org_asaas_credentials: {
         Args: { p_org: string }
@@ -2014,6 +2109,10 @@ export type Database = {
           allowed_roles: Database["public"]["Enums"]["org_role"][]
           target_org: string
         }
+        Returns: boolean
+      }
+      is_contact_suppressed: {
+        Args: { p_org: string; p_type: string; p_value: string }
         Returns: boolean
       }
       is_org_member: { Args: { target_org: string }; Returns: boolean }
@@ -2081,6 +2180,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      normalize_contact_value: {
+        Args: { p_type: string; p_value: string }
+        Returns: string
       }
       recompute_proposal_total: {
         Args: { p_proposal_id: string }
@@ -2260,7 +2363,6 @@ export const Constants = {
     },
   },
 } as const
-
 
 export type OrgRole = Database["public"]["Enums"]["org_role"]
 export type MemberStatus = "invited" | "active" | "suspended"
