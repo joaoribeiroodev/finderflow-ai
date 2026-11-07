@@ -44,6 +44,26 @@ export type CopilotTurnResult =
   | { kind: "error"; message: string };
 
 const MAX_TOOL_LOOP_ITERATIONS = 5;
+const CONVERSATION_TITLE_MAX_LENGTH = 60;
+
+/**
+ * Deriva um título curto a partir da primeira mensagem do usuário —
+ * `createConversation` nunca recebe título (o botão "Nova conversa" cria
+ * a linha antes de haver qualquer mensagem), então sem isso toda
+ * conversa ficava permanentemente como "Conversa sem título" na lista.
+ * Corta em um limite de caracteres, preferindo uma quebra de palavra,
+ * sem chamar a IA — é só um rótulo de navegação, não vale o custo/
+ * latência de mais uma chamada estruturada.
+ */
+export function deriveConversationTitle(firstMessage: string): string {
+  const normalized = firstMessage.replace(/\s+/g, " ").trim();
+  if (normalized.length <= CONVERSATION_TITLE_MAX_LENGTH) return normalized;
+
+  const truncated = normalized.slice(0, CONVERSATION_TITLE_MAX_LENGTH);
+  const lastSpace = truncated.lastIndexOf(" ");
+  const base = lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated;
+  return `${base}…`;
+}
 
 export async function createConversation(
   supabase: Supabase,
@@ -307,6 +327,21 @@ export async function sendCopilotMessage(
   }
 
   await insertMessage(supabase, organizationId, conversationId, "user", text, null);
+
+  if (!conversation.title) {
+    const { error: titleError } = await supabase
+      .from("ai_conversations")
+      .update({ title: deriveConversationTitle(text) })
+      .eq("organization_id", organizationId)
+      .eq("id", conversationId);
+    if (titleError) {
+      logger.warn("Falha ao definir título da conversa do Copilot", {
+        error: titleError.message,
+        organizationId,
+        conversationId,
+      });
+    }
+  }
 
   const input: ConversationInput = {
     promptKey: PROMPT_KEYS.copilot,
