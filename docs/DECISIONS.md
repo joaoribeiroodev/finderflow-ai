@@ -775,3 +775,99 @@ como algo esquecido.
 195/195 passando (211 anteriores − os testes de `entitlements.ts`/
 `status.ts` removidos junto com o billing antigo). `next build` e
 `eslint` limpos.
+
+## Fase 10 — fundações de infra para a evolução do produto (supressão LGPD, fila assíncrona, auditoria, rate limit distribuído)
+
+Primeira fase de um escopo bem maior pedido pelo usuário (evolução do
+FinderFlow AI para uma plataforma de inteligência comercial B2B com 10
+módulos novos — enriquecimento, website audit, presence score, scoring
+2.0, recomendação de serviços, campanhas, cadências, WhatsApp, agente de
+vendas IA, inteligência de conversão). Antes de qualquer módulo, o
+usuário pediu explicitamente uma auditoria somente leitura (ETAPA 0,
+entregue como `ETAPA-0-AUDITORIA.md`) e só depois aprovou o início da
+implementação, começando pelas fundações que os outros módulos
+dependem — exatamente a ordem de prioridade proposta na própria
+auditoria.
+
+Decisão central desta fase: **nenhuma das fundações contratou um
+fornecedor novo**. A auditoria tinha listado explicitamente várias
+decisões de negócio pendentes (fila dedicada tipo Trigger.dev/Inngest,
+Redis/Upstash para rate limit, Sentry para observabilidade, upgrade do
+plano Supabase para backups) — como essas decisões ainda não foram
+tomadas pelo usuário, esta fase resolveu o que dava para resolver só com
+o que já existe (Postgres/Supabase):
+
+- **Lista de supressão (LGPD)**: tabela `suppression_entries` nova
+  (planejada desde o PRD original, nunca criada), normalizando e-mail/
+  telefone numa coluna gerada e isolada por organização via RLS. Função
+  `is_contact_suppressed()` (security definer) é o ponto único que
+  qualquer envio em massa futuro (campanhas, cadências, WhatsApp) vai
+  ter que consultar antes de contatar alguém — falha fechada (erro na
+  checagem = trata como suprimido). UI mínima em Configurações para
+  registrar pedidos manuais de descadastro, já que campanhas/cadências
+  ainda não existem para popular isso automaticamente.
+- **Fila assíncrona real**: a tabela `jobs` já existia no schema desde
+  o PRD original, mas tinha zero usos em `src`. Implementado
+  `claim_next_job()` (SQL, `FOR UPDATE SKIP LOCKED` — necessário porque
+  o supabase-js não expõe essa sintaxe) + um worker HTTP
+  (`/api/v1/jobs/worker`) autenticado por `CRON_SECRET`, invocado pelo
+  Vercel Cron a cada 5 minutos (`vercel.json`). Isso dá uso de novo a
+  `CRON_SECRET`, que estava órfão desde que `/api/v1/jobs/billing-sync`
+  foi removido na Fase 9. Retry com backoff exponencial + jitter;
+  esgotadas as tentativas, o job vai para `dead_letter`. Dois jobs
+  periódicos de manutenção ("se re-enfileiram" sozinhos com uma
+  idempotency_key derivada do slot de horário) provam o ciclo completo
+  de ponta a ponta: purgar `rate_limit_counters` expirados e devolver
+  para `queued` jobs presos em `processing` por mais de 15min (caso o
+  worker caia no meio do processamento de um job).
+- **Rate limiting distribuído**: função `check_rate_limit()` (Postgres)
+  substitui o contador em memória de `rate-limit.ts` no middleware —
+  consistente entre instâncias/regiões da Vercel, sem precisar de
+  Redis. Com fallback automático para o contador em memória se o banco
+  estiver inacessível (nunca bloqueia login legítimo por causa de uma
+  camada de hardening).
+- **Auditoria estendida**: `audit_logs` já existia, mas só era usado
+  para tentativas de login. Agora também registra: aprovação/rejeição
+  de organização (painel admin), set/clear de qualquer credencial de
+  integração (Asaas/OpenAI/Gmail), exclusão de organização, e criação
+  de cobrança Asaas (Contratos) — as ações administrativas/financeiras
+  que a própria `docs/08-security-operations.md` §8.2 já exigia e que
+  não estavam cobertas.
+
+### Bug real encontrado na verificação ao vivo (não no typecheck/lint/testes)
+
+`check_rate_limit()` tinha uma coluna de retorno (`reset_at`) com o
+mesmo nome de uma coluna da tabela `rate_limit_counters`, causando
+"column reference reset_at is ambiguous" em toda chamada — só apareceu
+ao executar a função de verdade contra o banco (`supabase/tests/
+fase10-foundations-verification.sql`), não em nenhuma das checagens
+estáticas. Corrigido qualificando a tabela com um alias dentro da
+função. Fica registrado como lembrete: **uma função SQL nova sempre
+precisa ser executada pelo menos uma vez de verdade antes de ser
+considerada pronta** — typecheck/lint não alcançam o corpo de uma
+function PL/pgSQL.
+
+### O que esta fase explicitamente NÃO fez
+
+Observabilidade (Sentry/APM), backup gerenciado (upgrade do plano
+Supabase), fila dedicada (Trigger.dev/Inngest) e rate limit via Redis
+continuam como decisões de negócio pendentes do usuário — ver seção 6
+de `ETAPA-0-AUDITORIA.md`. Nenhum dos 10 módulos novos (enriquecimento,
+website audit, etc.) foi implementado ainda; esta fase foi só a
+fundação que eles vão precisar.
+
+### Testes
+
+215/215 passando (2 arquivos novos: `retry-policy.test.ts`). `next
+build`, `npm run lint` e `npm run typecheck` limpos. Verificação de RLS/
+isolamento feita ao vivo contra o projeto real (ver `supabase/tests/
+fase10-foundations-verification.sql`): isolamento cross-tenant da lista
+de supressão, normalização de contato, bloqueio de `claim_next_job`
+para `authenticated`/`anon`, comportamento de `check_rate_limit`, e o
+ciclo de vida completo de um job (enqueue → claim atômico → não pode
+ser reivindicado duas vezes). Dados de teste dessa verificação (2 orgs,
+2 usuários, 1 job, 1 linha de rate limit, 1 entrada de supressão, todos
+com e-mail `fase10-test-*@example.test`) não puderam ser limpos nesta
+sessão (a confirmação da ferramenta MCP para a instrução de limpeza não
+foi entregue/respondida) — os ids e os `DELETE`s exatos estão
+registrados no cabeçalho do próprio script de verificação.
