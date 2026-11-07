@@ -1,16 +1,3 @@
-/**
- * Tipos do banco de dados Supabase.
- *
- * Gerado automaticamente a partir do projeto real (lxzsefabmnagiaywaxeb) via:
- *
- *   mcp__Supabase__generate_typescript_types (MCP), equivalente a
- *   npx supabase gen types typescript --project-id lxzsefabmnagiaywaxeb --schema public
- *
- * NAO EDITAR AS SECOES GERADAS A MAO. Para atualizar apos uma nova migration,
- * regenere e substitua o conteudo abaixo (mantendo os aliases de
- * conveniencia ao final do arquivo).
- */
-
 export type Json =
   | string
   | number
@@ -1217,6 +1204,68 @@ export type Database = {
             foreignKeyName: "organization_members_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_profiles: {
+        Row: {
+          address_city: string | null
+          address_state: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          legal_name: string | null
+          organization_id: string
+          person_type: string
+          phone: string | null
+          pitch: string | null
+          sender_name: string | null
+          trade_name: string | null
+          updated_at: string
+          website: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          address_city?: string | null
+          address_state?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          legal_name?: string | null
+          organization_id: string
+          person_type?: string
+          phone?: string | null
+          pitch?: string | null
+          sender_name?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          website?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          address_city?: string | null
+          address_state?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          legal_name?: string | null
+          organization_id?: string
+          person_type?: string
+          phone?: string | null
+          pitch?: string | null
+          sender_name?: string | null
+          trade_name?: string | null
+          updated_at?: string
+          website?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },

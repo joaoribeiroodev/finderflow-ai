@@ -4,9 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { runStructuredAI } from "@/lib/ai/engine";
 import type { AIResult } from "@/lib/ai/provider";
-import { outreachMessageSchema, type OutreachMessage } from "@/lib/ai/schemas";
+import { companyAnalysisSchema, outreachMessageSchema, type OutreachMessage } from "@/lib/ai/schemas";
 import { logger } from "@/lib/logger/logger";
 import { getLeadDetail } from "@/modules/leads/leads.service";
+import { getOrganizationProfile } from "@/modules/organizations/profile.service";
 import type { Database } from "@/types/database";
 
 import { buildOutreachGeneratorInput, OUTREACH_GENERATOR_INSTRUCTIONS, PROMPT_KEYS, PROMPT_VERSIONS } from "./prompts";
@@ -32,11 +33,32 @@ export async function generateOutreachMessage(
   const lead = await getLeadDetail(supabase, organizationId, leadId);
   if (!lead) throw new LeadNotFoundError();
 
+  // Perfil da organização (quem está prospectando/o que vende/WhatsApp) e a
+  // análise de IA mais recente já feita sobre esta empresa-alvo (quando
+  // existir) — ambos usados para que cada e-mail seja moldado ao caso real,
+  // nunca um texto fixo reaproveitado entre leads diferentes.
+  const [organizationProfile, latestAnalysis] = await Promise.all([
+    getOrganizationProfile(supabase, organizationId),
+    lead.company_id
+      ? supabase
+          .from("ai_analyses")
+          .select("result")
+          .eq("organization_id", organizationId)
+          .eq("company_id", lead.company_id)
+          .eq("analysis_type", "company_analysis")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const latestCompanyAnalysis = companyAnalysisSchema.safeParse(latestAnalysis.data?.result).data ?? null;
+
   const result = await runStructuredAI(supabase, organizationId, {
     promptKey: PROMPT_KEYS.outreachGenerator,
     promptVersion: PROMPT_VERSIONS.outreachGenerator,
     instructions: OUTREACH_GENERATOR_INSTRUCTIONS,
-    input: buildOutreachGeneratorInput(lead, channel),
+    input: buildOutreachGeneratorInput(lead, channel, organizationProfile, latestCompanyAnalysis),
     schema: outreachMessageSchema,
     schemaName: "outreach_message",
   });

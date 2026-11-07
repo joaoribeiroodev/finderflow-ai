@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Building2, Download, Shield, Users, Plug, Lock } from "lucide-react";
+import { Building2, Download, Shield, Users, Plug, Lock, IdCard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
+import { getOrganizationProfile } from "@/modules/organizations/profile.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
@@ -12,6 +13,7 @@ import {
   GmailCredentialsForm,
   OpenAiCredentialsForm,
 } from "@/components/settings/integration-credentials-form";
+import { OrganizationProfileForm } from "@/components/settings/organization-profile-form";
 import { Button } from "@/components/ui/button";
 import { DangerZone } from "@/components/settings/danger-zone";
 import { TeamMembers } from "@/components/settings/team-members";
@@ -48,10 +50,10 @@ export default async function SettingsPage() {
       : { data: [] as { id: string; full_name: string | null }[] };
   const fullNameByUserId = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
 
-  const integrationStatus = await getOrganizationIntegrationStatus(
-    supabase,
-    activeOrganization.organizationId,
-  );
+  const [integrationStatus, organizationProfile] = await Promise.all([
+    getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
+    getOrganizationProfile(supabase, activeOrganization.organizationId),
+  ]);
 
   const {
     data: { user: currentUser },
@@ -94,6 +96,18 @@ export default async function SettingsPage() {
             </div>
           </dl>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader
+          title={
+            <span className="flex items-center gap-2">
+              <IdCard className="size-4 text-[var(--ff-violet-glow)]" aria-hidden /> Perfil
+            </span>
+          }
+          subtitle="Dados cadastrais usados pela IA para personalizar e assinar os e-mails de prospecção"
+        />
+        <OrganizationProfileForm profile={organizationProfile} />
       </Card>
 
       <Card>

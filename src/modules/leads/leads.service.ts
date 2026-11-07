@@ -38,6 +38,15 @@ export interface LeadListResult {
  * Lista leads da organização ativa. Busca livre é feita pelo nome da
  * empresa associada (join `companies`), não pela tabela `leads` em si
  * (que não tem nome próprio).
+ *
+ * O filtro de busca precisa ser aplicado no PostgREST, antes do
+ * `.range()` — filtrar a página já paginada em memória (como era feito
+ * antes) não funcionava: cada página só tem até 20 linhas, então buscar
+ * um termo que não estivesse nessas 20 linhas específicas sempre
+ * retornava vazio, e o `count` continuava contando o total sem o filtro.
+ * Para filtrar por uma coluna da tabela embutida (`company.name`) o
+ * PostgREST exige o embed com `!inner` — company_id é NOT NULL em
+ * `leads`, então isso nunca exclui leads sem empresa.
  */
 export async function listLeads(
   supabase: Supabase,
@@ -48,16 +57,23 @@ export async function listLeads(
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  const term = filters.search?.trim();
+  const companyEmbed = term
+    ? "company:companies!leads_company_same_org_fk!inner(id, name, category)"
+    : "company:companies!leads_company_same_org_fk(id, name, category)";
+
   let query = supabase
     .from("leads")
-    .select("*, company:companies!leads_company_same_org_fk(id, name, category), stage:pipeline_stages!leads_stage_same_org_fk(id, name, color, is_closed)", {
-      count: "exact",
-    })
+    .select(
+      `*, ${companyEmbed}, stage:pipeline_stages!leads_stage_same_org_fk(id, name, color, is_closed)`,
+      { count: "exact" },
+    )
     .eq("organization_id", organizationId)
     .is("archived_at", null)
     .order("updated_at", { ascending: false })
     .range(from, to);
 
+  if (term) query = query.ilike("company.name", `%${term}%`);
   if (filters.stageId) query = query.eq("stage_id", filters.stageId);
   if (filters.priority) query = query.eq("priority", filters.priority as LeadRow["priority"]);
 
@@ -68,12 +84,7 @@ export async function listLeads(
     throw new Error("Não foi possível carregar os leads.");
   }
 
-  let leads = (data ?? []) as unknown as LeadListItem[];
-
-  if (filters.search && filters.search.trim().length > 0) {
-    const term = filters.search.trim().toLowerCase();
-    leads = leads.filter((lead) => lead.company?.name.toLowerCase().includes(term));
-  }
+  const leads = (data ?? []) as unknown as LeadListItem[];
 
   return { leads, total: count ?? 0, page, pageSize: PAGE_SIZE };
 }
