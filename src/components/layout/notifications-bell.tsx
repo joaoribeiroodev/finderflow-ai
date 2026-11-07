@@ -59,7 +59,7 @@ export function NotificationsBell({
         onClick={handleOpen}
         aria-label={`Notificações${unreadCount > 0 ? ` (${unreadCount} não lidas)` : ""}`}
         aria-expanded={open}
-        className="relative flex size-9 items-center justify-center rounded-[var(--ff-radius-sm)] text-[var(--ff-text-secondary)] hover:bg-[#201832] hover:text-white"
+        className="relative flex size-9 items-center justify-center rounded-[var(--ff-radius-sm)] text-[var(--ff-text-secondary)] hover:bg-[var(--ff-bg-elevated)] hover:text-white"
       >
         <Bell className="size-[18px]" aria-hidden />
         {unreadCount > 0 ? (
@@ -70,7 +70,7 @@ export function NotificationsBell({
       {open ? (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 z-50 mt-2 w-[320px] max-w-[90vw] rounded-[var(--ff-radius-md)] border border-[var(--ff-border-subtle)] bg-[#150f23] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+          <div className="absolute right-0 z-50 mt-2 w-[320px] max-w-[90vw] rounded-[var(--ff-radius-md)] border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-sidebar)] p-2 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
             <div className="flex items-center justify-between px-2 py-1.5">
               <p className="text-sm font-semibold text-[var(--ff-text-primary)]">Notificações</p>
               {unreadCount > 0 ? (
@@ -98,7 +98,7 @@ export function NotificationsBell({
                       "flex w-full flex-col gap-0.5 rounded-[var(--ff-radius-sm)] px-2 py-2 text-left text-sm transition-colors",
                       n.readAt
                         ? "text-[var(--ff-text-muted)]"
-                        : "bg-[#201832] text-[var(--ff-text-primary)] hover:bg-[#241c3a]",
+                        : "bg-[var(--ff-bg-elevated)] text-[var(--ff-text-primary)] hover:bg-[var(--ff-bg-surface)]",
                     )}
                   >
                     <span className="flex items-center justify-between gap-2">

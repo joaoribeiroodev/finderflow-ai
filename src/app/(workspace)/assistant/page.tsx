@@ -57,7 +57,7 @@ export default async function AssistantPage() {
       ) : (
         <Card>
           <CardHeader title="Suas conversas" />
-          <ul className="flex flex-col divide-y divide-[#2d243c]">
+          <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
             {conversations.map((conversation) => (
               <li key={conversation.id} className="py-3">
                 <Link

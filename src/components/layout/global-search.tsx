@@ -17,7 +17,7 @@ function normalize(value: string): string {
 }
 
 /** Páginas do sistema como resultados de busca — instantâneo, sem round-trip. */
-const PAGE_RESULTS: SearchResult[] = ALL_NAV_ITEMS.filter((item) => !item.comingInPhase).map((item) => ({
+const PAGE_RESULTS: SearchResult[] = ALL_NAV_ITEMS.map((item) => ({
   id: item.href,
   kind: "page",
   title: item.label,
@@ -126,7 +126,7 @@ export function GlobalSearch() {
       {open ? (
         <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 px-4 pt-24">
           <div className="fixed inset-0" onClick={closeModal} aria-hidden />
-          <div className="relative w-full max-w-[560px] rounded-[var(--ff-radius-md)] border border-[var(--ff-border-subtle)] bg-[#150f23] shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
+          <div className="relative w-full max-w-[560px] rounded-[var(--ff-radius-md)] border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-sidebar)] shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
             <div className="flex items-center gap-2 border-b border-[var(--ff-border-subtle)] px-4 py-3">
               <Search className="size-4 shrink-0 text-[var(--ff-text-muted)]" aria-hidden />
               <input
@@ -164,7 +164,7 @@ export function GlobalSearch() {
                       onMouseEnter={() => setActiveIndex(index)}
                       className={`flex w-full items-center gap-3 rounded-[var(--ff-radius-sm)] px-2 py-2 text-left text-sm ${
                         index === activeIndex
-                          ? "bg-[#201832] text-white"
+                          ? "bg-[var(--ff-bg-elevated)] text-white"
                           : "text-[var(--ff-text-secondary)]"
                       }`}
                     >

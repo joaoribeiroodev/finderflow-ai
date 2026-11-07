@@ -207,7 +207,7 @@ export function ImportWizard() {
               <th className="px-4 py-2 font-medium">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#2d243c]">
+          <tbody className="divide-y divide-[var(--ff-border-subtle)]">
             {preview?.sample.map((row) => (
               <tr key={row.line}>
                 <td className="px-4 py-2 text-[var(--ff-text-muted)]">{row.line}</td>

@@ -120,7 +120,7 @@ export function CompaniesMap({ initialPoints, stages, initialPendingCount }: Com
           zoom={zoom}
           scrollWheelZoom
           className="h-full w-full"
-          style={{ background: "#171326" }}
+          style={{ background: "var(--ff-bg-surface)" }}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

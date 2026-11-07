@@ -30,8 +30,8 @@ export function AdminTabs({ tabs }: { tabs: AdminTab[] }) {
             className={cn(
               "rounded-[var(--ff-radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors duration-150",
               active === tab.key
-                ? "bg-[linear-gradient(90deg,rgba(109,40,217,0.25),rgba(139,92,246,0.18))] text-white"
-                : "text-[var(--ff-text-secondary)] hover:bg-[#201832] hover:text-white",
+                ? "bg-[var(--ff-bg-elevated)] text-white"
+                : "text-[var(--ff-text-secondary)] hover:bg-[var(--ff-bg-elevated)] hover:text-white",
             )}
           >
             {tab.label}

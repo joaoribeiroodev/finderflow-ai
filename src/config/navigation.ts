@@ -16,20 +16,13 @@ import {
 
 /**
  * Árvore de navegação do workspace (docs/06-design-system.md §6.4,
- * espelhando `prototype/index.html`).
- *
- * Itens cuja fase ainda não foi implementada apontam para uma página
- * "em breve" (ver `src/components/layout/coming-soon.tsx`) em vez de uma
- * rota inexistente — evita 404 e deixa claro o que falta, sem fingir que a
- * funcionalidade já existe (regra do prompt mestre: não construir telas
- * desconectadas do modelo de dados antes da hora).
+ * espelhando `prototype/index.html`). Todo item aponta para uma rota já
+ * implementada.
  */
 export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Fase do prompt mestre que entrega esta tela; `undefined` = já disponível. */
-  comingInPhase?: number;
 }
 
 export interface NavSection {

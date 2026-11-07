@@ -6,7 +6,6 @@ import { requireActiveOrganization } from "@/modules/organizations/active-organi
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   AsaasCredentialsForm,
@@ -15,16 +14,9 @@ import {
 } from "@/components/settings/integration-credentials-form";
 import { Button } from "@/components/ui/button";
 import { DangerZone } from "@/components/settings/danger-zone";
+import { TeamMembers } from "@/components/settings/team-members";
 
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Proprietário",
-  admin: "Administrador",
-  manager: "Gerente",
-  member: "Membro",
-  viewer: "Visualizador",
-};
 
 export default async function SettingsPage() {
   const activeOrganization = await requireActiveOrganization();
@@ -60,6 +52,12 @@ export default async function SettingsPage() {
     supabase,
     activeOrganization.organizationId,
   );
+
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+
+  const canManageTeam = activeOrganization.role === "owner" || activeOrganization.role === "admin";
 
   return (
     <div className="flex flex-col gap-5">
@@ -110,26 +108,20 @@ export default async function SettingsPage() {
         {membersError ? (
           <ErrorState description="Não foi possível carregar os membros." />
         ) : (
-          <ul className="flex flex-col divide-y divide-[#2d243c]">
-            {(members ?? []).map((member) => (
-              <li key={member.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <span className="truncate text-[var(--ff-text-primary)]">
-                  {fullNameByUserId.get(member.user_id) ?? `Membro ${member.user_id.slice(0, 8)}`}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  {member.status !== "active" ? (
-                    <Badge variant="warning">{member.status}</Badge>
-                  ) : null}
-                  <Badge variant="outline">{ROLE_LABELS[member.role] ?? member.role}</Badge>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <TeamMembers
+            members={(members ?? []).map((member) => ({
+              id: member.id,
+              userId: member.user_id,
+              role: member.role,
+              status: member.status,
+              name: fullNameByUserId.get(member.user_id) ?? `Membro ${member.user_id.slice(0, 8)}`,
+            }))}
+            canManage={canManageTeam}
+            currentUserId={currentUser?.id ?? null}
+          />
         )}
         <p className="mt-3 text-xs text-[var(--ff-text-muted)]">
-          Nomes de outros membros só aparecem quando o próprio usuário já preencheu o perfil — o
-          convite e a edição de papéis de equipe serão implementados em uma fase futura de
-          colaboração.
+          Nomes de outros membros só aparecem quando o próprio usuário já preencheu o perfil.
         </p>
       </Card>
 

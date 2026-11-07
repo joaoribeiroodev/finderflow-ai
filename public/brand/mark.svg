@@ -1,8 +1,8 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="ff-badge-gradient" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8b5cf6" />
-      <stop offset="1" stop-color="#d946ef" />
+      <stop offset="0" stop-color="#c68a3b" />
+      <stop offset="1" stop-color="#a94b4b" />
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="16" fill="url(#ff-badge-gradient)" />

@@ -17,7 +17,7 @@ export function StageCreateForm() {
       <div className="min-w-[200px] flex-1">
         <Field label="Nova etapa" name="name" placeholder="Ex.: Follow-up" errors={state.fieldErrors?.name} />
       </div>
-      <input type="color" name="color" defaultValue="#8B5CF6" className="h-11 w-14 rounded-xl border border-[var(--ff-border-subtle)] bg-transparent" aria-label="Cor da etapa" />
+      <input type="color" name="color" defaultValue="#C68A3B" className="h-11 w-14 rounded-xl border border-[var(--ff-border-subtle)] bg-transparent" aria-label="Cor da etapa" />
       <div className="min-w-[160px]">
         <SelectField label="Resultado" name="resultType" defaultValue="">
           <option value="">Aberta</option>

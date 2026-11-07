@@ -45,7 +45,7 @@ export function FunnelRow({
   return (
     <div className="my-3 grid grid-cols-[minmax(0,105px)_1fr_auto] items-center gap-2.5 text-xs">
       <span className="truncate text-[var(--ff-text-secondary)]">{label}</span>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[#312644]">
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--ff-bg-elevated)]">
         <div
           className="h-full rounded-full"
           style={{

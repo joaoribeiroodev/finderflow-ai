@@ -125,7 +125,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           {lead.contacts.length === 0 ? (
             <EmptyState icon={Users} title="Nenhum contato cadastrado" />
           ) : (
-            <ul className="mb-4 divide-y divide-[#2d243c]">
+            <ul className="mb-4 divide-y divide-[var(--ff-border-subtle)]">
               {lead.contacts.map((contact) => (
                 <ContactItem key={contact.id} contact={contact} leadId={lead.id} />
               ))}
@@ -139,7 +139,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           {lead.tasks.length === 0 ? (
             <EmptyState icon={History} title="Nenhuma tarefa ainda" />
           ) : (
-            <ul className="mb-4 divide-y divide-[#2d243c]">
+            <ul className="mb-4 divide-y divide-[var(--ff-border-subtle)]">
               {lead.tasks.map((task) => (
                 <TaskItem key={task.id} task={task} leadId={lead.id} />
               ))}

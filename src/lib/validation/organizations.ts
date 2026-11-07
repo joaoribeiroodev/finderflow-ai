@@ -22,6 +22,25 @@ export const createOrganizationSchema = z.object({
 });
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 
+/**
+ * Papéis que um admin/owner pode atribuir a outro membro via convite ou
+ * troca de papel. `owner` fica de fora — transferência de propriedade é
+ * uma operação separada e mais sensível, não coberta pelo convite comum.
+ */
+export const ASSIGNABLE_ROLES = ["admin", "manager", "member", "viewer"] as const;
+export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+export const inviteMemberSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Informe um e-mail válido."),
+  role: z.enum(ASSIGNABLE_ROLES, { message: "Selecione um papel válido." }),
+});
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+
+export const updateMemberRoleSchema = z.object({
+  memberId: z.string().uuid("Membro inválido."),
+  role: z.enum(ASSIGNABLE_ROLES, { message: "Selecione um papel válido." }),
+});
+
 /** Gera um slug sugerido a partir do nome, sem garantir unicidade. */
 export function slugify(name: string): string {
   return name

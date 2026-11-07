@@ -33,7 +33,7 @@ export function Topbar({
   const roleLabel = ROLE_LABELS[activeOrganization.role] ?? activeOrganization.role;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[var(--ff-border-subtle)] bg-[#0d0a15]/85 px-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[var(--ff-border-subtle)] bg-[var(--ff-bg-sidebar)]/85 px-4 backdrop-blur-xl sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <button
           type="button"

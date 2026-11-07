@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import { Sparkles } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartCard } from "@/components/ui/chart-card";
 import type { SalesInsights } from "@/lib/ai/schemas";
@@ -36,8 +35,7 @@ export function SalesInsightsSection() {
         </span>
       }
       subtitle="Interpretação de métricas reais do período — a IA nunca calcula os números, só analisa."
-      action={<Badge variant="outline">Fase 7</Badge>}
-      className="border-[#55347a] bg-[linear-gradient(100deg,#281743,#1b1430_60%,#201332)]"
+      className="border-l-2 border-l-[var(--ff-brass)] bg-[var(--ff-bg-elevated)]"
     >
       <form action={formAction} className="mb-4 flex items-center gap-2">
         <label className="sr-only" htmlFor="sales-insights-period">

@@ -8,7 +8,7 @@ export const stageCreateSchema = z.object({
     .string()
     .trim()
     .regex(HEX_COLOR, "Cor inválida (use o seletor).")
-    .default("#8B5CF6"),
+    .default("#C68A3B"),
   // `null`/`undefined` = etapa aberta (não fecha o funil). Vêm de um
   // <select> sempre presente no DOM, então `.optional()` normal já cobre
   // o caso (ver companies.ts para o caso de campo ausente do DOM).

@@ -138,7 +138,7 @@ export default async function LeadsPage({
                 <th className="px-5 py-3 font-medium">Atualizado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#2d243c]">
+            <tbody className="divide-y divide-[var(--ff-border-subtle)]">
               {leads.map((lead) => (
                 <tr key={lead.id} className="hover:bg-[var(--ff-bg-elevated)]/60">
                   <td className="px-5 py-3">

@@ -6,7 +6,7 @@ describe("stageCreateSchema", () => {
   it("usa cor padrão quando ausente", () => {
     const result = stageCreateSchema.safeParse({ name: "Novo contato" });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.color).toBe("#8B5CF6");
+    if (result.success) expect(result.data.color).toBe("#C68A3B");
   });
 
   it("rejeita cor fora do formato hex", () => {

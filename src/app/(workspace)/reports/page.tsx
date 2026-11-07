@@ -114,7 +114,7 @@ export default async function ReportsPage({
           {data.lossReasons.length === 0 ? (
             <EmptyState icon={BarChart3} title="Nenhum lead perdido no período" />
           ) : (
-            <ul className="flex flex-col divide-y divide-[#2d243c]">
+            <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
               {data.lossReasons.map((r) => (
                 <li key={r.reason} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-[var(--ff-text-primary)]">{r.reason}</span>
@@ -130,7 +130,7 @@ export default async function ReportsPage({
           {data.aiUsage.length === 0 ? (
             <EmptyState icon={BarChart3} title="Nenhuma chamada de IA no período" />
           ) : (
-            <ul className="flex flex-col divide-y divide-[#2d243c]">
+            <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
               {data.aiUsage.map((u) => (
                 <li key={u.operation} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <span className="text-[var(--ff-text-primary)]">{u.operation}</span>
