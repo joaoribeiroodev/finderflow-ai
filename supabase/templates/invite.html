@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Você foi convidado — FinderFlow AI</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#0f1522; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f1522; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" style="max-width:480px;" cellpadding="0" cellspacing="0">
+            <tr>
+              <td align="center" style="padding-bottom:24px;">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="width:44px; height:44px; border-radius:10px; background:linear-gradient(135deg,#c68a3b,#a94b4b); text-align:center; vertical-align:middle; font-size:20px;">
+                      🔎
+                    </td>
+                    <td style="padding-left:10px; font-size:18px; font-weight:700; color:#f2eadb;">
+                      FinderFlow AI
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="background-color:#192234; border:1px solid #34445a; border-radius:10px; padding:36px 32px;">
+                <p style="margin:0 0 6px; font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#e1b46a;">
+                  Convite de equipe
+                </p>
+                <h1 style="margin:0 0 16px; font-size:22px; line-height:1.3; color:#f2eadb;">
+                  Você foi convidado para o FinderFlow AI
+                </h1>
+                <p style="margin:0 0 24px; font-size:14px; line-height:1.6; color:#c0c3c5;">
+                  Você foi convidado a entrar na organização de um time no FinderFlow AI. Clique no botão abaixo para criar sua senha e acessar a plataforma.
+                </p>
+
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+                  <tr>
+                    <td style="border-radius:10px; background:linear-gradient(to right,#c68a3b,#a94b4b);">
+                      <a
+                        href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/recovery/reset"
+                        style="display:inline-block; padding:13px 28px; font-size:14px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:10px;"
+                      >
+                        Aceitar convite
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:0 0 4px; font-size:12px; line-height:1.6; color:#929ba7;">
+                  Se o botão não funcionar, copie e cole este link no navegador:
+                </p>
+                <p style="margin:0 0 24px; font-size:12px; line-height:1.6; word-break:break-all;">
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/recovery/reset" style="color:#e1b46a;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/recovery/reset</a>
+                </p>
+
+                <p style="margin:0; padding-top:16px; border-top:1px solid #34445a; font-size:12px; line-height:1.6; color:#929ba7;">
+                  Se você não esperava este convite, pode ignorar este e-mail com segurança.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding-top:24px;">
+                <p style="margin:0; font-size:11px; color:#929ba7;">
+                  FinderFlow AI — prospecção e CRM com IA
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

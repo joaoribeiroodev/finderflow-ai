@@ -245,10 +245,27 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Templates com a marca do FinderFlow AI (supabase/templates/) — ver
+# docs/DECISIONS.md "Fase 9 (continuação) — e-mails de Auth". Os links
+# usam {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=...
+# em vez de {{ .ConfirmationURL }} de propósito: o link vai direto para a
+# própria rota /auth/confirm da aplicação, sem depender da allow-list de
+# Redirect URLs do projeto remoto (causa provável do bug "cai na tela de
+# login" relatado pelo usuário). Aplicar com `supabase config push`
+# (projeto linkado) ou colando o HTML manualmente em Authentication →
+# Emails → Templates no painel — nenhuma ferramenta MCP tem acesso a essa
+# configuração.
+[auth.email.template.invite]
+subject = "Você foi convidado para o FinderFlow AI"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.confirmation]
+subject = "Confirme seu e-mail — FinderFlow AI"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Redefina sua senha — FinderFlow AI"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
