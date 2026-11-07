@@ -464,6 +464,76 @@ export type Database = {
           },
         ]
       }
+      company_enrichment_fields: {
+        Row: {
+          company_id: string
+          confidence: number
+          created_at: string
+          discovered_at: string
+          field_key: string
+          field_value: string
+          id: string
+          is_ai_inferred: boolean
+          organization_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          company_id: string
+          confidence?: number
+          created_at?: string
+          discovered_at?: string
+          field_key: string
+          field_value: string
+          id?: string
+          is_ai_inferred?: boolean
+          organization_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source: string
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          confidence?: number
+          created_at?: string
+          discovered_at?: string
+          field_key?: string
+          field_value?: string
+          id?: string
+          is_ai_inferred?: boolean
+          organization_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_enrichment_fields_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_enrichment_fields_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "company_enrichment_fields_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_source_refs: {
         Row: {
           attribution: Json
@@ -2364,6 +2434,6 @@ export const Constants = {
   },
 } as const
 
-export type OrgRole = Database["public"]["Enums"]["org_role"]
-export type MemberStatus = "invited" | "active" | "suspended"
-export type ApprovalStatus = "pending" | "approved" | "rejected"
+export type OrgRole = Database["public"]["Enums"]["org_role"];
+export type MemberStatus = "invited" | "active" | "suspended";
+export type ApprovalStatus = "pending" | "approved" | "rejected";

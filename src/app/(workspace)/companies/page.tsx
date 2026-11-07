@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { BatchEnrichButton } from "@/components/companies/batch-enrich-button";
 import { formatCnpj } from "@/lib/utils/normalize";
 import { formatRelativeDateTime } from "@/lib/utils/format";
 
@@ -52,6 +53,7 @@ export default async function CompaniesPage({
         subtitle={`${total.toLocaleString("pt-BR")} empresa${total === 1 ? "" : "s"} cadastrada${total === 1 ? "" : "s"} nesta organização.`}
         actions={
           <>
+            <BatchEnrichButton />
             <Link href="/companies/import">
               <Button variant="secondary" size="sm">
                 <Upload className="mr-2 size-4" aria-hidden /> Importar CSV

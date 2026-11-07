@@ -10,8 +10,10 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConvertToLeadButton } from "@/components/companies/convert-to-lead-button";
+import { CompanyEnrichmentSection } from "@/components/companies/company-enrichment-section";
 import { CompanyAnalysisSection } from "@/components/ai/company-analysis-section";
 import { listCompanyAnalyses } from "@/modules/ai/company-analyzer.service";
+import { listPendingEnrichmentFields } from "@/modules/companies/enrichment/enrichment.service";
 import type { CompanyAnalysis } from "@/lib/ai/schemas";
 import { formatCnpj } from "@/lib/utils/normalize";
 import { formatRelativeDateTime } from "@/lib/utils/format";
@@ -34,6 +36,7 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
   if (!company) notFound();
 
   const activeLeadId = await getActiveLeadIdForCompany(supabase, activeOrganization.organizationId, id);
+  const pendingEnrichmentFields = await listPendingEnrichmentFields(supabase, activeOrganization.organizationId, id);
   const analyses = await listCompanyAnalyses(supabase, activeOrganization.organizationId, id);
   const latestAnalysis = (analyses[0]?.result ?? null) as CompanyAnalysis | null;
   const address = (company.address ?? {}) as CompanyAddress;
@@ -122,6 +125,8 @@ export default async function CompanyDetailPage({ params }: { params: Promise<{ 
           </dl>
         </Card>
       </div>
+
+      <CompanyEnrichmentSection companyId={company.id} initialFields={pendingEnrichmentFields} />
 
       <CompanyAnalysisSection companyId={company.id} initialAnalysis={latestAnalysis} />
 

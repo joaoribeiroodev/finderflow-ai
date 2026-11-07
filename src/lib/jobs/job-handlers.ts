@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
+import { enrichCompany } from "@/modules/companies/enrichment/enrichment.service";
 
 import { enqueueJob, type JobRow } from "./queue";
 
@@ -89,9 +90,35 @@ async function cleanupStuckJobs(): Promise<void> {
   await rescheduleSelf("cleanup_stuck_jobs", PERIODIC_INTERVAL_MS);
 }
 
+/**
+ * Processa um job de enriquecimento (Módulo 1) — primeiro handler "de
+ * negócio" da fila da Fase 10 (os outros dois são manutenção interna).
+ * Usa o cliente admin porque o worker roda sem sessão de usuário
+ * autenticado; a mesma função `enrichCompany` é usada pelo caminho
+ * síncrono (botão "Enriquecer" na página da empresa, via cliente comum
+ * sob RLS) e por aqui.
+ */
+async function handleEnrichCompany(job: JobRow): Promise<void> {
+  const payload = job.payload as { companyId?: string } | null;
+  const companyId = payload?.companyId;
+  if (!job.organization_id || !companyId) {
+    throw new Error("Job enrich_company sem organization_id/companyId.");
+  }
+
+  const admin = createAdminClient();
+  const outcome = await enrichCompany(admin, job.organization_id, companyId);
+  logger.info("Enriquecimento de empresa processado via fila", {
+    companyId,
+    organizationId: job.organization_id,
+    status: outcome.status,
+    proposedCount: outcome.proposedCount,
+  });
+}
+
 const JOB_HANDLERS: Record<string, JobHandler> = {
   cleanup_rate_limit_counters: cleanupRateLimitCounters,
   cleanup_stuck_jobs: cleanupStuckJobs,
+  enrich_company: handleEnrichCompany,
 };
 
 export function resolveJobHandler(jobType: string): JobHandler | null {

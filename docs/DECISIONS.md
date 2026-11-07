@@ -871,3 +871,71 @@ com e-mail `fase10-test-*@example.test`) não puderam ser limpos nesta
 sessão (a confirmação da ferramenta MCP para a instrução de limpeza não
 foi entregue/respondida) — os ids e os `DELETE`s exatos estão
 registrados no cabeçalho do próprio script de verificação.
+
+## Módulo 1 — Enriquecimento Inteligente de Empresas
+
+Primeira fase pós-fundações (Fase 10), recomendada no próprio relatório
+dela por reaproveitar mais do que já existe (web presence checker, fila
+assíncrona, audit log) e alimentar os futuros módulos de Score/Scoring.
+
+### O que foi implementado
+
+- Tabela nova `company_enrichment_fields`: cada achado (e-mail, telefone,
+  site, ou link de rede social — Instagram/Facebook/LinkedIn/TikTok/
+  YouTube/X) fica como uma **proposta** `pending`, nunca grava direto nas
+  colunas de `companies`. Unique `(company_id, field_key, field_value)`
+  evita duplicar a mesma proposta em re-scans. RLS no mesmo padrão
+  tenant-scoped das outras tabelas (`select_member`/`insert_editor`/
+  `update_editor`/`delete_admin`).
+- Extração **determinística via regex**, nunca IA — decisão deliberada
+  para não gastar custo de IA numa tarefa que não precisa de
+  interpretação e para manter a regra "nunca inventar fatos, distinguir
+  fato de hipótese": um link `mailto:`/`tel:`/de rede social que está de
+  fato no HTML da página é um fato observado, não uma inferência (ver
+  `src/modules/companies/enrichment/extract-contacts.ts`, com testes
+  unitários). O campo `is_ai_inferred` já existe no schema, reservado
+  para uma extração baseada em IA futura — deliberadamente não usado
+  nesta fase.
+- `src/modules/companies/enrichment/enrichment.service.ts`: orquestra a
+  busca do HTML (direto, se a empresa já tem `website`; via
+  `DomainProbeWebPresenceChecker` — o mesmo verificador da prospecção —
+  quando não tem) e a extração; lista propostas pendentes; aplica
+  aceite/rejeição (aceite grava na coluna real de `companies`, com merge
+  não destrutivo em `social_links`, que é jsonb).
+- UI síncrona: botão "Enriquecer" na página de detalhe da empresa
+  (`CompanyEnrichmentSection`), mesmo princípio de honestidade de estado
+  da seção de Análise com IA — mostra "sem site identificado" quando não
+  há nada para analisar, nunca finge sucesso. Lista as propostas
+  pendentes com Aceitar/Rejeitar por campo.
+- UI em lote: botão "Enriquecer empresas pendentes" na listagem de
+  empresas — enfileira um job `enrich_company` por empresa sem
+  `website`/`email`/`phone`, usando a fila assíncrona da Fase 10 (seu
+  primeiro uso de negócio real, não apenas manutenção). `idempotencyKey`
+  por dia evita duplicar o mesmo job no mesmo clique duplo, mas permite
+  tentar de novo em dias seguintes.
+- Auditoria (`company_enrichment.scan`, `company_enrichment_field.accept`/
+  `.reject`, `company_enrichment.batch_enqueue`) via `logAudit()` da
+  Fase 10.
+
+### O que esta fase explicitamente NÃO fez
+
+- Nenhuma extração via IA (texto livre da página, OCR de imagem, etc.) —
+  só regex sobre links explícitos (`mailto:`/`tel:`/âncoras de rede
+  social). Fica como incremento futuro se o recall do regex se mostrar
+  insuficiente.
+- Nenhuma raspagem de buscadores/mapas — mesma restrição já registrada
+  para o verificador de presença digital (ToS do Google/Maps).
+- Nenhum limite de taxa dedicado para o fetch do HTML além do timeout de
+  8s por requisição; em lote, depende só do orçamento de tempo do worker
+  (`MAX_BUDGET_MS`) e do limite de 500 candidatos por clique no botão em
+  lote.
+
+### Testes
+
+222/222 passando (7 novos em `extract-contacts.test.ts`, cobrindo
+mailto válido/inválido, tel válido/curto demais, redes sociais
+conhecidas, links genéricos de compartilhar/login descartados, e
+deduplicação). `next build`, `npm run lint` e `npx tsc --noEmit`
+limpos. Migration aplicada ao projeto real (`company_enrichment_fields`
+— schema confirmado via `information_schema.columns`); `get_advisors`
+(security) não reportou nenhum achado novo causado por esta fase.
