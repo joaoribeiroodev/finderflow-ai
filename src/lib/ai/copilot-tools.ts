@@ -47,10 +47,17 @@ export interface CopilotToolDefinition {
   ) => Promise<unknown>;
 }
 
+// Campos opcionais aqui usam `.nullable().optional()`, não só `.optional()`:
+// a Responses API em modo "strict" (usada por `zodResponsesFunction`, ver
+// openai-provider.ts) exige que todo campo de um schema de function-calling
+// seja `required`, com os opcionais representados como nullable em vez de
+// ausentes — sem isso a própria SDK recusa montar a tool synchronamente
+// (nunca chega a sair uma requisição à OpenAI). Doc:
+// https://platform.openai.com/docs/guides/structured-outputs?api-mode=responses#all-fields-must-be-required
 const listLeadsArgs = z.object({
-  search: z.string().trim().max(200).optional(),
-  priority: z.enum(["low", "medium", "high"]).optional(),
-  page: z.number().int().min(1).max(50).optional(),
+  search: z.string().trim().max(200).nullable().optional(),
+  priority: z.enum(["low", "medium", "high"]).nullable().optional(),
+  page: z.number().int().min(1).max(50).nullable().optional(),
 });
 
 const getLeadDetailsArgs = z.object({
@@ -58,26 +65,26 @@ const getLeadDetailsArgs = z.object({
 });
 
 const getTasksDueArgs = z.object({
-  withinDays: z.number().int().min(1).max(60).optional(),
+  withinDays: z.number().int().min(1).max(60).nullable().optional(),
 });
 
 const getPipelineMetricsArgs = z.object({});
 
 const getSalesReportArgs = z.object({
-  sinceDays: z.number().int().min(1).max(365).optional(),
+  sinceDays: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 const createTaskArgs = z.object({
   leadId: z.string().uuid(),
   title: z.string().trim().min(2).max(160),
-  description: z.string().trim().max(2000).optional(),
-  dueAt: z.string().trim().optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  dueAt: z.string().trim().nullable().optional(),
 });
 
 const updateLeadStageArgs = z.object({
   leadId: z.string().uuid(),
   stageId: z.string().uuid(),
-  lossReason: z.string().trim().max(500).optional(),
+  lossReason: z.string().trim().max(500).nullable().optional(),
 });
 
 export const COPILOT_TOOLS: CopilotToolDefinition[] = [
@@ -90,9 +97,9 @@ export const COPILOT_TOOLS: CopilotToolDefinition[] = [
     async execute(supabase, organizationId, _userId, rawArgs) {
       const args = listLeadsArgs.parse(rawArgs);
       const result = await listLeads(supabase, organizationId, {
-        search: args.search,
-        priority: args.priority,
-        page: args.page,
+        search: args.search ?? undefined,
+        priority: args.priority ?? undefined,
+        page: args.page ?? undefined,
       });
       return {
         total: result.total,
@@ -241,8 +248,8 @@ export const COPILOT_TOOLS: CopilotToolDefinition[] = [
       await createTask(supabase, organizationId, {
         leadId: args.leadId,
         title: args.title,
-        description: args.description,
-        dueAt: args.dueAt,
+        description: args.description ?? undefined,
+        dueAt: args.dueAt ?? undefined,
       });
       return { success: true };
     },
@@ -257,7 +264,7 @@ export const COPILOT_TOOLS: CopilotToolDefinition[] = [
       const args = updateLeadStageArgs.parse(rawArgs);
       await assertCanEditOrganization(supabase, organizationId);
       try {
-        await moveLeadStage(supabase, args.leadId, args.stageId, args.lossReason);
+        await moveLeadStage(supabase, args.leadId, args.stageId, args.lossReason ?? undefined);
         return { success: true };
       } catch (error) {
         if (error instanceof InvalidStageTransitionError) {
