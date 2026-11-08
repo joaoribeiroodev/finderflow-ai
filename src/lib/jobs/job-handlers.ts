@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
 import { enrichCompany } from "@/modules/companies/enrichment/enrichment.service";
+import { sendCampaignMessage } from "@/modules/campaigns/campaign-messages.service";
 
 import { enqueueJob, type JobRow } from "./queue";
 
@@ -115,10 +116,37 @@ async function handleEnrichCompany(job: JobRow): Promise<void> {
   });
 }
 
+/**
+ * Processa um envio de mensagem de campanha (Módulo 6). Reusa
+ * `sendCampaignMessage` tal e qual o caminho síncrono (botão "Enviar"
+ * individual) — as mesmas 4 checagens (aprovação, supressão, texto de
+ * descadastro, Gmail) rodam aqui também; uma falha aqui marca a
+ * mensagem como `failed` (com `error_message`), nunca lança de volta
+ * para a fila tentar de novo silenciosamente um envio já rejeitado por
+ * regra de negócio (supressão, p.ex.) — só falhas de infraestrutura
+ * (Gmail fora do ar) se beneficiam do retry/backoff da fila.
+ */
+async function handleSendCampaignMessage(job: JobRow): Promise<void> {
+  const payload = job.payload as { campaignCompanyId?: string } | null;
+  const campaignCompanyId = payload?.campaignCompanyId;
+  if (!job.organization_id || !campaignCompanyId) {
+    throw new Error("Job send_campaign_message sem organization_id/campaignCompanyId.");
+  }
+
+  const admin = createAdminClient();
+  const result = await sendCampaignMessage(admin, job.organization_id, campaignCompanyId);
+  logger.info("Envio de mensagem de campanha processado via fila", {
+    campaignCompanyId,
+    organizationId: job.organization_id,
+    success: result.success,
+  });
+}
+
 const JOB_HANDLERS: Record<string, JobHandler> = {
   cleanup_rate_limit_counters: cleanupRateLimitCounters,
   cleanup_stuck_jobs: cleanupStuckJobs,
   enrich_company: handleEnrichCompany,
+  send_campaign_message: handleSendCampaignMessage,
 };
 
 export function resolveJobHandler(jobType: string): JobHandler | null {

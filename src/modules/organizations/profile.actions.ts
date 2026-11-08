@@ -38,6 +38,7 @@ export async function saveOrganizationProfileAction(
     addressCity: formData.get("addressCity"),
     addressState: formData.get("addressState"),
     pitch: formData.get("pitch"),
+    unsubscribeText: formData.get("unsubscribeText"),
   });
 
   if (!parsed.success) {

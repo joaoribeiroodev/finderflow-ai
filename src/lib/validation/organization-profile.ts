@@ -27,6 +27,12 @@ export const organizationProfileSchema = z.object({
   addressCity: optionalTrimmed(120),
   addressState: optionalTrimmed(2),
   pitch: optionalTrimmed(600),
+  // Módulo 6 — Campanhas: texto de descadastro/oposição a contato.
+  // Deliberadamente sem valor padrão da plataforma (ver migration
+  // module6_campaigns) — cada organização escreve o seu; o backend exige
+  // isso preenchido antes de permitir enviar qualquer mensagem de
+  // campanha.
+  unsubscribeText: optionalTrimmed(500),
 });
 
 export type OrganizationProfileFormInput = z.infer<typeof organizationProfileSchema>;

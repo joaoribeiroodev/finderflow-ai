@@ -97,6 +97,19 @@ export const outreachMessageSchema = z.object({
 export type OutreachMessage = z.infer<typeof outreachMessageSchema>;
 
 /**
+ * Rascunho de mensagem de campanha (Módulo 6 — Campanhas de Vendas).
+ * Deliberadamente mais estreito que `outreachMessageSchema`: campanhas
+ * nesta fase são só canal e-mail, e o corpo NUNCA inclui texto de
+ * descadastro — isso é anexado depois, fora da IA, a partir do que a
+ * própria organização escreveu (ver `campaign-message-compose.ts`).
+ */
+export const campaignMessageSchema = z.object({
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(3000),
+});
+export type CampaignMessageDraft = z.infer<typeof campaignMessageSchema>;
+
+/**
  * Insights de vendas (Sales Analyst, FF-085 "Insights IA com evidência e
  * período"). O modelo só INTERPRETA métricas já calculadas no servidor
  * (nunca recebe permissão para calcular ou inventar números) — por isso

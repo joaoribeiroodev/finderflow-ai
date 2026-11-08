@@ -15,6 +15,7 @@ const EMPTY: OrganizationProfile = {
   addressCity: null,
   addressState: null,
   pitch: null,
+  unsubscribeText: null,
 };
 
 describe("formatOrganizationProfileForPrompt", () => {

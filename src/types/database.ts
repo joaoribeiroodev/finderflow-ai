@@ -384,6 +384,218 @@ export type Database = {
           },
         ]
       }
+      campaign_companies: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          campaign_id: string
+          company_id: string
+          id: string
+          organization_id: string
+          status: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          campaign_id: string
+          company_id: string
+          id?: string
+          organization_id: string
+          status?: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          campaign_id?: string
+          company_id?: string
+          id?: string
+          organization_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_companies_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_companies_campaign_same_org_fk"
+            columns: ["organization_id", "campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "campaign_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_companies_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "campaign_companies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_messages: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string | null
+          campaign_company_id: string
+          campaign_id: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          generated_by_ai: boolean
+          id: string
+          model: string | null
+          organization_id: string
+          prompt_version: string | null
+          recipient_email: string | null
+          rendered_body: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string | null
+          campaign_company_id: string
+          campaign_id: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          generated_by_ai?: boolean
+          id?: string
+          model?: string | null
+          organization_id: string
+          prompt_version?: string | null
+          recipient_email?: string | null
+          rendered_body?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string | null
+          campaign_company_id?: string
+          campaign_id?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          generated_by_ai?: boolean
+          id?: string
+          model?: string | null
+          organization_id?: string
+          prompt_version?: string | null
+          recipient_email?: string | null
+          rendered_body?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_messages_campaign_company_id_fkey"
+            columns: ["campaign_company_id"]
+            isOneToOne: true
+            referencedRelation: "campaign_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_campaign_company_same_org_fk"
+            columns: ["organization_id", "campaign_company_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_campaign_same_org_fk"
+            columns: ["organization_id", "campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          objective: string | null
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          objective?: string | null
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          objective?: string | null
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: Json
@@ -1403,6 +1615,7 @@ export type Database = {
           pitch: string | null
           sender_name: string | null
           trade_name: string | null
+          unsubscribe_text: string | null
           updated_at: string
           website: string | null
           whatsapp_number: string | null
@@ -1420,6 +1633,7 @@ export type Database = {
           pitch?: string | null
           sender_name?: string | null
           trade_name?: string | null
+          unsubscribe_text?: string | null
           updated_at?: string
           website?: string | null
           whatsapp_number?: string | null
@@ -1437,6 +1651,7 @@ export type Database = {
           pitch?: string | null
           sender_name?: string | null
           trade_name?: string | null
+          unsubscribe_text?: string | null
           updated_at?: string
           website?: string | null
           whatsapp_number?: string | null

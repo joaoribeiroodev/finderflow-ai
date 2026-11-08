@@ -22,6 +22,7 @@ export interface OrganizationProfile {
   addressCity: string | null;
   addressState: string | null;
   pitch: string | null;
+  unsubscribeText: string | null;
 }
 
 export interface OrganizationProfileInput {
@@ -37,6 +38,7 @@ export interface OrganizationProfileInput {
   addressCity?: string | null;
   addressState?: string | null;
   pitch?: string | null;
+  unsubscribeText?: string | null;
 }
 
 const EMPTY_PROFILE: OrganizationProfile = {
@@ -52,6 +54,7 @@ const EMPTY_PROFILE: OrganizationProfile = {
   addressCity: null,
   addressState: null,
   pitch: null,
+  unsubscribeText: null,
 };
 
 /**
@@ -69,7 +72,7 @@ export async function getOrganizationProfile(
   const { data, error } = await supabase
     .from("organization_profiles")
     .select(
-      "person_type, legal_name, trade_name, document, sender_name, email, phone, whatsapp_number, website, address_city, address_state, pitch",
+      "person_type, legal_name, trade_name, document, sender_name, email, phone, whatsapp_number, website, address_city, address_state, pitch, unsubscribe_text",
     )
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -93,6 +96,7 @@ export async function getOrganizationProfile(
     addressCity: data.address_city,
     addressState: data.address_state,
     pitch: data.pitch,
+    unsubscribeText: data.unsubscribe_text,
   };
 }
 
@@ -115,6 +119,7 @@ export async function upsertOrganizationProfile(
     address_city: input.addressCity ?? null,
     address_state: input.addressState ?? null,
     pitch: input.pitch ?? null,
+    unsubscribe_text: input.unsubscribeText ?? null,
     updated_at: new Date().toISOString(),
   });
 

@@ -13,6 +13,7 @@ import {
   Settings,
   Map,
   Lightbulb,
+  Megaphone,
 } from "lucide-react";
 
 /**
@@ -44,6 +45,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/assistant", label: "Assistente IA", icon: Sparkles },
       { href: "/services", label: "Serviços", icon: Wrench },
       { href: "/recommendations", label: "Recomendações", icon: Lightbulb },
+      { href: "/campaigns", label: "Campanhas", icon: Megaphone },
       { href: "/proposals", label: "Propostas", icon: FileText },
       { href: "/reports", label: "Relatórios", icon: BarChart3 },
     ],

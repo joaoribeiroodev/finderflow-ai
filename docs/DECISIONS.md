@@ -1125,3 +1125,100 @@ aplicada ao projeto real; `get_advisors` (security e performance) não
 reportou nenhum achado novo causado por esta fase — em particular,
 nenhum alerta de "Security Definer View", confirmando que
 `security_invoker=true` surtiu o efeito esperado.
+
+## Módulo 6 — Campanhas de Vendas
+
+Maior volume de código novo do plano (como a própria auditoria previu,
+seção 9). Antes de implementar, reli a seção 6 (decisões de negócio
+pendentes) e a seção 9 — e a auditoria já avisava que este módulo
+depende de o item 1 (supressão/LGPD, Fase 10) estar pronto, o que está:
+`suppression_entries` + `is_contact_suppressed()` (fail-closed) já
+existiam e nunca tinham sido usados por nenhuma rotina de envio real.
+
+### Decisão de negócio pendente (seção 6) — como foi resolvida
+
+A auditoria aponta que ela não pode decidir sozinha "o texto padrão de
+descadastro" nem "o prazo de retenção de mensagens". Decidi não inferir
+nenhum dos dois:
+
+- **Texto de descadastro**: em vez de um texto padrão da plataforma (que
+  nem faria sentido — cada organização é um negócio diferente, com seu
+  próprio tom e política), virou um campo obrigatório por organização
+  (`organization_profiles.unsubscribe_text`, editável em Configurações →
+  Perfil). O backend **bloqueia o envio de qualquer mensagem de campanha**
+  enquanto esse campo estiver vazio (`getCampaignMessageSendBlockReason`).
+  A IA nunca escreve esse texto — é sempre literalmente o que a própria
+  organização digitou, anexado automaticamente no envio
+  (`renderCampaignMessageBody`).
+- **Prazo de retenção**: deliberadamente sem purga automática por
+  agora — mesmo estado de toda outra tabela deste schema hoje. Pendência
+  explícita (ver abaixo), não uma decisão silenciosa.
+- **Supressão por e-mail, telefone ou ambos**: já estava resolvido
+  estruturalmente desde a Fase 10 — `is_contact_suppressed` aceita o
+  tipo de contato por chamada; Módulo 6 (canal e-mail) checa por e-mail.
+
+### O que foi implementado
+
+1. **Migration `module6_campaigns`**: `campaigns`, `campaign_companies`
+   (uma empresa pode estar em várias campanhas; status
+   selecionada/excluída/contatada/respondeu), `campaign_messages` (uma
+   linha por empresa-na-campanha — rascunho → aprovação → envio, "quem
+   aprovou" nunca omitido) e a coluna `organization_profiles.unsubscribe_text`.
+   RLS em todas: `select_member`/`insert_editor`/`update_editor`;
+   `campaign_messages` nunca tem política de `delete` — trilha de
+   auditoria do que foi de fato aprovado/enviado é permanente.
+2. **Campanhas operam em `companies`, não em `leads`**: decisão
+   deliberada — uma empresa só pode ter 1 lead ativo por vez
+   (`leads_one_active_company_idx`), e campanhas de prospecção precisam
+   alcançar empresas ainda não qualificadas em nenhum lead. Por isso
+   `campaign_messages` é uma tabela própria, não uma reutilização de
+   `outreach_emails` (que é por lead).
+3. **Geração de e-mail por IA, por empresa, nunca em lote**: novo prompt
+   `CAMPAIGN_MESSAGE_INSTRUCTIONS`/`buildCampaignMessageInput`, com a
+   MESMA filosofia anti-disparo-em-massa do Outreach Generator existente
+   (Fase 5: "PROIBIDO parecer... um disparo em massa") — cada e-mail é
+   gerado olhando os dados reais daquela empresa (fatos cadastrais +
+   última análise de IA do Módulo 5 quando houver + Pontuação de
+   Presença Digital do Módulo 3 quando houver), nunca um template
+   reaproveitado entre empresas da mesma campanha.
+4. **Aprovação humana obrigatória antes de enviar**: todo rascunho nasce
+   `status=draft`; só pode ser enviado depois de `approved` (campo
+   `approved_by`/`approved_at` preenchido por uma ação explícita do
+   usuário) — mesma regra de "nenhuma ação de IA que muda dados é
+   automática" usada em toda a Fase 5.
+5. **Envio reaproveita o mecanismo existente do Gmail SMTP** (Fase 5) —
+   extraí `resolveOrgGmailCredentials` para `src/lib/email/` para não
+   duplicar entre o envio manual de e-mail (lead) e o envio de campanha.
+   Checagem de supressão (fail-closed) roda nos dois agora — **corrigi
+   uma lacuna real**: o envio manual de e-mail de prospecção (Fase 5)
+   nunca checava supressão antes desta fase; agora checa.
+6. **Envio em massa aprovado passa pela fila assíncrona da Fase 10**
+   (`send_campaign_message` job type) em vez de bloquear a requisição —
+   cada job roda as mesmas 4 checagens (aprovação, supressão, texto de
+   descadastro, Gmail) isoladamente; falha de uma empresa nunca trava as
+   outras.
+7. UI: `/campaigns` (lista + criação) e `/campaigns/[id]` (adicionar
+   empresas por busca, editor de rascunho por empresa, gerar com IA,
+   aprovar, enviar individual ou "Enviar aprovadas" em lote). Item novo
+   no menu.
+
+### O que esta fase explicitamente NÃO fez
+
+- Nenhuma detecção automática de resposta — "respondeu" é um status
+  manual (`campaign_companies.status`); não há integração de leitura de
+  caixa de entrada nesta fase.
+- Nenhuma purga automática de mensagens antigas — pendência explícita
+  (ver acima), igual a Sentry/Redis/upgrade de plano na Fase 10.
+- Nenhum canal além de e-mail (`channel` já está no schema como check
+  constraint preparado para `whatsapp` no Módulo 8, mas só `'email'` é
+  aceito agora).
+- Não editei o Outreach Generator nem o Company Analyzer em si (fora o
+  sinal de Pontuação de Presença Digital já adicionado no Módulo 5) —
+  são caminhos de IA deliberadamente distintos do de campanha.
+
+### Testes
+
+252/252 passando (9 novos em `campaign-message-compose.test.ts`). `next
+build`, `npm run lint` e `npx tsc --noEmit` limpos. Migration aplicada
+ao projeto real; `get_advisors` (security) sem nenhum achado novo
+causado por esta fase.

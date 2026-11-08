@@ -126,6 +126,25 @@ export function OrganizationProfileForm({ profile }: { profile: OrganizationProf
         </p>
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="unsubscribeText" className="text-sm font-medium text-[var(--ff-text-secondary)]">
+          Texto de descadastro (obrigatório para enviar campanhas)
+        </label>
+        <textarea
+          id="unsubscribeText"
+          name="unsubscribeText"
+          defaultValue={profile.unsubscribeText ?? ""}
+          rows={2}
+          placeholder="Ex.: Se preferir não receber mais contato nosso, responda este e-mail com 'remover' e paramos de te escrever."
+          className="rounded-xl border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-surface)] px-3.5 py-2.5 text-sm text-[var(--ff-text-primary)] outline-none placeholder:text-[var(--ff-text-muted)] focus-visible:border-[var(--ff-purple-500)] focus-visible:ring-2 focus-visible:ring-[var(--ff-purple-500)]"
+        />
+        <p className="text-xs text-[var(--ff-text-muted)]">
+          Anexado automaticamente ao final de toda mensagem de campanha enviada — a plataforma não
+          escreve esse texto por você, é sua organização quem decide a redação exata. Sem isso
+          preenchido, não é possível ativar o envio de nenhuma campanha.
+        </p>
+      </div>
+
       {state.message ? (
         <p role="alert" className={`text-sm ${state.success ? "text-[var(--ff-success)]" : "text-[var(--ff-danger)]"}`}>
           {state.message}

@@ -3,56 +3,16 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { assertCanEditOrganization, PermissionError } from "@/lib/permissions/permissions";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
 import { sendGmailMessage } from "@/lib/email/gmail-smtp-client";
+import { resolveOrgGmailCredentials } from "@/lib/email/resolve-org-gmail-credentials";
+import { isContactSuppressed } from "@/modules/suppression/suppression.service";
 import { logger } from "@/lib/logger/logger";
 
 export interface SendOutreachEmailResult {
   success: boolean;
   message?: string;
-}
-
-/**
- * Resolve as credenciais Gmail da organização (e-mail + senha de app,
- * vindo do Vault) — nunca a conta pessoal do super admin, sempre a da
- * própria organização que está enviando.
- */
-async function resolveOrgGmailCredentials(
-  organizationId: string,
-): Promise<{ gmailAddress: string; appPassword: string } | null> {
-  try {
-    const admin = createAdminClient();
-
-    const [{ data: row }, { data: appPassword, error: passwordError }] = await Promise.all([
-      admin
-        .from("organization_integration_credentials")
-        .select("gmail_email")
-        .eq("organization_id", organizationId)
-        .maybeSingle(),
-      admin.rpc("get_org_gmail_app_password", { p_org: organizationId }),
-    ]);
-
-    if (passwordError) {
-      logger.error("Falha ao resolver senha de app do Gmail da organização", {
-        error: passwordError.message,
-        organizationId,
-      });
-      return null;
-    }
-    if (!row?.gmail_email || !appPassword) return null;
-
-    return { gmailAddress: row.gmail_email, appPassword };
-  } catch (error) {
-    // Mesmo degrade silencioso de resolveOpenAiCredentialsForOrganization —
-    // createAdminClient() lança quando SUPABASE_SERVICE_ROLE_KEY está ausente.
-    logger.warn("Resolução de credenciais Gmail indisponível (service role não configurada?)", {
-      error: (error as Error).message,
-      organizationId,
-    });
-    return null;
-  }
 }
 
 export async function sendOutreachEmailAction(
@@ -89,6 +49,19 @@ export async function sendOutreachEmailAction(
       success: false,
       message:
         "Configure sua conta Gmail em Configurações → Integrações antes de enviar e-mails de prospecção.",
+    };
+  }
+
+  // Risco #2 da auditoria (ETAPA-0-AUDITORIA.md §5): nenhuma rotina de
+  // contato pode ignorar a lista de supressão/LGPD (Fase 10). Esta
+  // checagem já existia como lacuna aqui (envio manual, pré-Módulo 6) —
+  // corrigida agora como parte da mesma rotina de reforço que o Módulo 6
+  // introduz, sem mudar o comportamento esperado para contatos não
+  // suprimidos.
+  if (await isContactSuppressed(organizationId, "email", recipientEmail)) {
+    return {
+      success: false,
+      message: "Este e-mail está na lista de supressão desta organização — envio bloqueado.",
     };
   }
 
