@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { formatBRL } from "@/lib/utils/format";
-import { BarChart3, Clock, Percent, Wallet } from "lucide-react";
+import { BarChart3, Clock, Percent, Repeat, Wallet } from "lucide-react";
 
 export const metadata: Metadata = { title: "Relatórios — FinderFlow AI" };
 
@@ -140,6 +140,64 @@ export default async function ReportsPage({
                 </li>
               ))}
             </ul>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Desempenho de campanhas"
+            subtitle="Empresas adicionadas a campanhas no período. 'Respondeu' só é marcado manualmente — não há rastreamento de abertura/clique de e-mail."
+          />
+          {data.campaignPerformance.totalCompanies === 0 ? (
+            <EmptyState icon={BarChart3} title="Nenhuma empresa adicionada a campanhas no período" />
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <KpiCard label="Empresas" value={String(data.campaignPerformance.totalCompanies)} icon={BarChart3} />
+                <KpiCard label="Contatadas" value={String(data.campaignPerformance.contactedCount)} icon={BarChart3} />
+                <KpiCard label="Responderam" value={String(data.campaignPerformance.respondedCount)} icon={BarChart3} />
+                <KpiCard
+                  label="Taxa de resposta"
+                  value={
+                    data.campaignPerformance.responseRate !== null
+                      ? `${(data.campaignPerformance.responseRate * 100).toFixed(0)}%`
+                      : "—"
+                  }
+                  icon={Percent}
+                />
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Resultados de cadências"
+            subtitle="Inscrições iniciadas no período, por status e motivo de parada."
+          />
+          {data.cadenceOutcomes.enrollmentsStarted === 0 ? (
+            <EmptyState icon={Repeat} title="Nenhuma inscrição em cadência no período" />
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <KpiCard label="Ativas" value={String(data.cadenceOutcomes.activeCount)} icon={Repeat} />
+                <KpiCard label="Pausadas" value={String(data.cadenceOutcomes.pausedCount)} icon={Repeat} />
+                <KpiCard label="Paradas" value={String(data.cadenceOutcomes.stoppedCount)} icon={Repeat} />
+                <KpiCard label="Concluídas" value={String(data.cadenceOutcomes.completedCount)} icon={Repeat} />
+              </div>
+              {data.cadenceOutcomes.stoppedReasons.length > 0 ? (
+                <ul className="flex flex-col divide-y divide-[var(--ff-border-subtle)]">
+                  {data.cadenceOutcomes.stoppedReasons.map((r) => (
+                    <li key={r.reason} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="text-[var(--ff-text-primary)]">{r.reason}</span>
+                      <span className="ff-tabular-nums text-[var(--ff-text-secondary)]">{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           )}
         </Card>
       </div>

@@ -1542,3 +1542,97 @@ validação de argumentos + `describeForConfirmation` de
 --noEmit` limpos. Nenhuma migration nova — reaproveita tabelas e
 funções já existentes, então não há achado novo de `get_advisors` a
 revisar.
+
+## Módulo 10 — Inteligência de Conversão
+
+A auditoria original (seção 9, item 10) pediu relatórios/dashboard
+sobre dados já existentes: taxa de resposta de campanhas, resultado de
+cadências, conversão/taxa de ganho do pipeline. A última parte —
+conversão e taxa de ganho do pipeline — **já existia desde a Fase 7**
+(`/reports`, `reports.service.ts`: conversão por segmento, origem,
+responsável, etapa e serviço, ciclo médio, ticket médio, motivos de
+perda). Por isso este módulo não cria uma página nova: estende
+`/reports` com as duas peças que realmente faltavam — desempenho de
+campanhas (Módulo 6) e resultado de cadências (Módulo 7) — no mesmo
+seletor de período que já existia.
+
+### O que foi implementado
+
+1. **`computeCampaignPerformance`** (função pura e testada): agrega
+   `campaign_companies` adicionadas no período por status — total,
+   contatadas, responderam, excluídas — e calcula taxa de resposta
+   como `respondido ÷ (contatado + respondido)`.
+2. **`computeCadenceOutcomes`** (função pura e testada): agrega
+   `cadence_enrollments` iniciadas no período por status (ativa,
+   pausada, parada, concluída) com o detalhamento de motivos de
+   parada, e `cadence_step_sends` por status (enviado/falhou/pulado)
+   no mesmo período.
+3. **Decisão deliberada sobre o que "taxa de resposta" significa
+   aqui**: o sistema não tem rastreamento de abertura/clique de
+   e-mail — nenhum provedor com webhook de tracking foi integrado (o
+   envio é via Gmail SMTP da própria organização, Fase 5/Módulo 6).
+   "Respondeu" só existe quando um humano confirma manualmente (botão
+   "Marcar como respondeu" no Módulo 6 e no Módulo 7) — isso é
+   documentado no próprio subtítulo da seção na UI, não escondido
+   atrás de um número que pareceria mais sofisticado do que é.
+4. UI: duas novas seções na página `/reports` existente — "Desempenho
+   de campanhas" e "Resultados de cadências" — usando os mesmos
+   componentes (`KpiCard`, `EmptyState`) já usados no resto da página,
+   no mesmo período selecionado pelo filtro `from`/`to` existente.
+
+### O que esta fase explicitamente NÃO fez
+
+- **Nenhum rastreamento real de abertura/clique de e-mail** — exigiria
+  um provedor de e-mail transacional com webhook (ex.: Resend,
+  SendGrid), o que não é gratuito acima de um volume pequeno e, mais
+  importante, trocaria o Gmail SMTP já configurado por organização
+  (Fase 5) por uma integração nova — fora do escopo de "relatório
+  sobre dados já existentes" que este módulo pediu.
+- **Nenhuma exportação (CSV/PDF) dos novos relatórios** — mesmo estado
+  da página de Relatórios como um todo hoje.
+
+### Testes
+
+Suíte completa permanece verde (276/276 — 6 novos testes cobrindo
+`computeCampaignPerformance` e `computeCadenceOutcomes`: cálculo de
+taxa de resposta, `responseRate` null quando não há contato/resposta
+ainda, agrupamento de motivos de parada, e listas vazias). `next
+build`, `npx eslint .` e `npx tsc --noEmit` limpos. Nenhuma migration
+nova — só consultas de leitura sobre tabelas já existentes.
+
+---
+
+## Conclusão desta fase (Módulos 2, 7, 8, 9, 10)
+
+Com o Módulo 10, esta fase do plano de evolução do FinderFlow AI
+(ETAPA-0-AUDITORIA.md seção 9) está completa sob a premissa dada —
+"somente integrações gratuitas ou alternativas open source, cortando o
+que não couber nela". Resumo:
+
+- **Módulo 2 — Website Audit**: implementado (Google PageSpeed
+  Insights, gratuito dentro de cota generosa, sem exigir faturamento).
+- **Módulo 7 — Cadências e Follow-up**: implementado (drip de e-mail
+  multi-etapa com template humano, sem IA no envio).
+- **Módulo 8 — WhatsApp Business**: **cortado**, decisão documentada
+  acima — nenhuma rota real passa a premissa gratuita/open-source com
+  segurança suficiente (API oficial depende de verificação de negócio
+  externa e imprevisível pela Meta; bibliotecas não-oficiais violam os
+  Termos de Serviço do WhatsApp e arriscam banimento do número).
+- **Módulo 9 — Agente de Vendas IA**: implementado como extensão do
+  Copilot já existente (Fase 5), em vez de um agente novo e paralelo —
+  evitou duplicar toda a arquitetura de confirmação humana que já
+  existia.
+- **Módulo 10 — Inteligência de Conversão**: implementado como
+  extensão da página de Relatórios já existente (Fase 7), com os dois
+  relatórios que realmente faltavam (campanhas e cadências).
+
+Também corrigida nesta fase, proativamente: uma divergência real entre
+o repositório e o banco de dados (4 migrations aplicadas ao projeto
+real em sessões anteriores que nunca tinham sido salvas como arquivo
+local nem commitadas) — reconstruída a partir do histórico do próprio
+Supabase e commitada, para qualquer ambiente novo não nascer com um
+schema incompleto.
+
+Nenhum fornecedor pago foi contratado nesta fase. Todas as integrações
+novas (PageSpeed) usam cota gratuita por organização, no mesmo padrão
+de credencial já estabelecido (Asaas/OpenAI/Gmail).

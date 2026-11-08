@@ -63,6 +63,81 @@ export function buildConversionBreakdown(
     .sort((a, b) => b.won + b.lost - (a.won + a.lost));
 }
 
+export interface CampaignPerformanceData {
+  /** Empresas adicionadas a uma campanha no período (`campaign_companies.added_at`). */
+  totalCompanies: number;
+  contactedCount: number;
+  respondedCount: number;
+  excludedCount: number;
+  /** respondido ÷ (contatado + respondido) — null se nenhuma mensagem foi enviada ainda. */
+  responseRate: number | null;
+}
+
+export interface CadenceOutcomesData {
+  /** Inscrições iniciadas no período (`cadence_enrollments.started_at`). */
+  enrollmentsStarted: number;
+  activeCount: number;
+  pausedCount: number;
+  stoppedCount: number;
+  completedCount: number;
+  stoppedReasons: { reason: string; count: number }[];
+  stepSends: { status: "sent" | "failed" | "skipped"; count: number }[];
+}
+
+/**
+ * Módulo 10 — Inteligência de Conversão. "Taxa de resposta" é um proxy
+ * honesto sobre o que o sistema realmente sabe — não há rastreamento de
+ * abertura/clique de e-mail (nenhum provedor com webhook de tracking
+ * está integrado). `responded` só é marcado quando um humano confirma
+ * manualmente que a empresa respondeu (Módulo 6) — nunca inferido
+ * automaticamente de um evento de e-mail.
+ */
+export function computeCampaignPerformance(
+  rows: { status: string }[],
+): CampaignPerformanceData {
+  const contactedCount = rows.filter((r) => r.status === "contacted").length;
+  const respondedCount = rows.filter((r) => r.status === "responded").length;
+  const outreachTotal = contactedCount + respondedCount;
+  return {
+    totalCompanies: rows.length,
+    contactedCount,
+    respondedCount,
+    excludedCount: rows.filter((r) => r.status === "excluded").length,
+    responseRate: outreachTotal > 0 ? respondedCount / outreachTotal : null,
+  };
+}
+
+/**
+ * Mesma lógica para cadências: "respondeu" só existe quando o usuário
+ * clica "Marcar como respondeu" (Módulo 7) — nunca inferido do conteúdo
+ * de uma resposta de e-mail real, que o sistema não lê.
+ */
+export function computeCadenceOutcomes(
+  enrollments: { status: string; stopped_reason: string | null }[],
+  stepSends: { status: string }[],
+): CadenceOutcomesData {
+  const stoppedReasonCounts = new Map<string, number>();
+  for (const row of enrollments) {
+    if (row.status !== "stopped") continue;
+    const reason = row.stopped_reason?.trim() || "Sem motivo registrado";
+    stoppedReasonCounts.set(reason, (stoppedReasonCounts.get(reason) ?? 0) + 1);
+  }
+  return {
+    enrollmentsStarted: enrollments.length,
+    activeCount: enrollments.filter((r) => r.status === "active").length,
+    pausedCount: enrollments.filter((r) => r.status === "paused").length,
+    stoppedCount: enrollments.filter((r) => r.status === "stopped").length,
+    completedCount: enrollments.filter((r) => r.status === "completed").length,
+    stoppedReasons: Array.from(stoppedReasonCounts.entries())
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count),
+    stepSends: (["sent", "failed", "skipped"] as const).map((status) => ({
+      status,
+      count: stepSends.filter((r) => r.status === status).length,
+    })),
+  };
+}
+
 export interface ReportsData {
   conversionBySegment: ConversionBreakdown[];
   conversionByOrigin: ConversionBreakdown[];
@@ -73,6 +148,8 @@ export interface ReportsData {
   avgTicket: number | null;
   lossReasons: { reason: string; count: number }[];
   aiUsage: { operation: string; count: number; estimatedCostUsd: number }[];
+  campaignPerformance: CampaignPerformanceData;
+  cadenceOutcomes: CadenceOutcomesData;
 }
 
 /**
@@ -89,7 +166,7 @@ export async function getReportsData(
   const startIso = period.start.toISOString();
   const endIso = period.end.toISOString();
 
-  const [closedLeadsRes, stageHistoryRes, proposalItemsRes, dealsRes, aiUsageRes] = await Promise.all([
+  const [closedLeadsRes, stageHistoryRes, proposalItemsRes, dealsRes, aiUsageRes, campaignCompaniesRes, cadenceEnrollmentsRes, cadenceStepSendsRes] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -123,6 +200,24 @@ export async function getReportsData(
       .eq("organization_id", organizationId)
       .gte("created_at", startIso)
       .lte("created_at", endIso),
+    supabase
+      .from("campaign_companies")
+      .select("status")
+      .eq("organization_id", organizationId)
+      .gte("added_at", startIso)
+      .lte("added_at", endIso),
+    supabase
+      .from("cadence_enrollments")
+      .select("status, stopped_reason")
+      .eq("organization_id", organizationId)
+      .gte("started_at", startIso)
+      .lte("started_at", endIso),
+    supabase
+      .from("cadence_step_sends")
+      .select("status")
+      .eq("organization_id", organizationId)
+      .gte("sent_at", startIso)
+      .lte("sent_at", endIso),
   ]);
 
   for (const [label, res] of [
@@ -131,6 +226,9 @@ export async function getReportsData(
     ["proposal_items", proposalItemsRes],
     ["deals", dealsRes],
     ["ai_usage", aiUsageRes],
+    ["campaign_companies", campaignCompaniesRes],
+    ["cadence_enrollments", cadenceEnrollmentsRes],
+    ["cadence_step_sends", cadenceStepSendsRes],
   ] as const) {
     if (res.error) {
       logger.error(`Falha ao calcular relatório (${label})`, { error: res.error.message, organizationId });
@@ -245,6 +343,9 @@ export async function getReportsData(
     .map(([operation, v]) => ({ operation, count: v.count, estimatedCostUsd: v.cost }))
     .sort((a, b) => b.count - a.count);
 
+  const campaignPerformance = computeCampaignPerformance(campaignCompaniesRes.data ?? []);
+  const cadenceOutcomes = computeCadenceOutcomes(cadenceEnrollmentsRes.data ?? [], cadenceStepSendsRes.data ?? []);
+
   return {
     conversionBySegment: buildConversionBreakdown(segmentEntries),
     conversionByOrigin: buildConversionBreakdown(originEntries),
@@ -255,5 +356,7 @@ export async function getReportsData(
     avgTicket,
     lossReasons,
     aiUsage,
+    campaignPerformance,
+    cadenceOutcomes,
   };
 }
