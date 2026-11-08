@@ -384,6 +384,248 @@ export type Database = {
           },
         ]
       }
+      cadence_enrollments: {
+        Row: {
+          cadence_id: string
+          current_step_order: number
+          id: string
+          lead_id: string
+          next_run_at: string
+          organization_id: string
+          started_at: string
+          status: string
+          stopped_at: string | null
+          stopped_reason: string | null
+        }
+        Insert: {
+          cadence_id: string
+          current_step_order?: number
+          id?: string
+          lead_id: string
+          next_run_at?: string
+          organization_id: string
+          started_at?: string
+          status?: string
+          stopped_at?: string | null
+          stopped_reason?: string | null
+        }
+        Update: {
+          cadence_id?: string
+          current_step_order?: number
+          id?: string
+          lead_id?: string
+          next_run_at?: string
+          organization_id?: string
+          started_at?: string
+          status?: string
+          stopped_at?: string | null
+          stopped_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadence_enrollments_cadence_id_fkey"
+            columns: ["cadence_id"]
+            isOneToOne: false
+            referencedRelation: "cadences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cadence_enrollments_cadence_same_org_fk"
+            columns: ["organization_id", "cadence_id"]
+            isOneToOne: false
+            referencedRelation: "cadences"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "cadence_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cadence_enrollments_lead_same_org_fk"
+            columns: ["organization_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "cadence_enrollments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cadence_step_sends: {
+        Row: {
+          enrollment_id: string
+          error_message: string | null
+          id: string
+          organization_id: string
+          recipient_email: string | null
+          rendered_body: string | null
+          rendered_subject: string | null
+          sent_at: string
+          status: string
+          step_id: string | null
+          step_order: number
+        }
+        Insert: {
+          enrollment_id: string
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          recipient_email?: string | null
+          rendered_body?: string | null
+          rendered_subject?: string | null
+          sent_at?: string
+          status: string
+          step_id?: string | null
+          step_order: number
+        }
+        Update: {
+          enrollment_id?: string
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          recipient_email?: string | null
+          rendered_body?: string | null
+          rendered_subject?: string | null
+          sent_at?: string
+          status?: string
+          step_id?: string | null
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadence_step_sends_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "cadence_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cadence_step_sends_enrollment_same_org_fk"
+            columns: ["organization_id", "enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "cadence_enrollments"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "cadence_step_sends_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cadence_step_sends_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "cadence_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cadence_steps: {
+        Row: {
+          body_template: string
+          cadence_id: string
+          created_at: string
+          day_offset: number
+          id: string
+          organization_id: string
+          step_order: number
+          subject_template: string
+        }
+        Insert: {
+          body_template: string
+          cadence_id: string
+          created_at?: string
+          day_offset?: number
+          id?: string
+          organization_id: string
+          step_order: number
+          subject_template: string
+        }
+        Update: {
+          body_template?: string
+          cadence_id?: string
+          created_at?: string
+          day_offset?: number
+          id?: string
+          organization_id?: string
+          step_order?: number
+          subject_template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadence_steps_cadence_id_fkey"
+            columns: ["cadence_id"]
+            isOneToOne: false
+            referencedRelation: "cadences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cadence_steps_cadence_same_org_fk"
+            columns: ["organization_id", "cadence_id"]
+            isOneToOne: false
+            referencedRelation: "cadences"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "cadence_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cadences: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_companies: {
         Row: {
           added_at: string

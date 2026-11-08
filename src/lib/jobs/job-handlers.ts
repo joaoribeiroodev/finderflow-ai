@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger/logger";
 import { enrichCompany } from "@/modules/companies/enrichment/enrichment.service";
 import { sendCampaignMessage } from "@/modules/campaigns/campaign-messages.service";
+import { processDueCadenceSteps } from "@/modules/cadences/cadence-processor.service";
 
 import { enqueueJob, type JobRow } from "./queue";
 
@@ -18,6 +19,7 @@ export type JobHandler = (job: JobRow) => Promise<void>;
 const STUCK_JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15min — maior que qualquer timeout de função esperado.
 const RATE_LIMIT_COUNTER_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PERIODIC_INTERVAL_MS = 30 * 60 * 1000; // 30min
+const CADENCE_PROCESSOR_INTERVAL_MS = 15 * 60 * 1000; // 15min — granularidade aceitável para offsets em dias.
 
 /** Agrupa um instante em "slots" de `intervalMs` — base da idempotência dos jobs periódicos abaixo. */
 function slotFor(timestampMs: number, intervalMs: number): number {
@@ -142,11 +144,28 @@ async function handleSendCampaignMessage(job: JobRow): Promise<void> {
   });
 }
 
+/**
+ * Processa o lote de inscrições de cadência devidas (Módulo 7) e se
+ * reagenda — mesmo padrão "periódico que se re-enfileira" dos dois
+ * jobs de manutenção acima, só que de granularidade menor (15min, não
+ * 30min) porque os offsets de etapa são em dias e uma defasagem de
+ * 30min+ já seria perceptível para quem configura "no mesmo dia".
+ */
+async function processCadenceSteps(): Promise<void> {
+  const admin = createAdminClient();
+  const { processed } = await processDueCadenceSteps(admin);
+  if (processed > 0) {
+    logger.info("Lote de etapas de cadência processado", { processed });
+  }
+  await rescheduleSelf("process_cadence_steps", CADENCE_PROCESSOR_INTERVAL_MS);
+}
+
 const JOB_HANDLERS: Record<string, JobHandler> = {
   cleanup_rate_limit_counters: cleanupRateLimitCounters,
   cleanup_stuck_jobs: cleanupStuckJobs,
   enrich_company: handleEnrichCompany,
   send_campaign_message: handleSendCampaignMessage,
+  process_cadence_steps: processCadenceSteps,
 };
 
 export function resolveJobHandler(jobType: string): JobHandler | null {
@@ -164,5 +183,6 @@ export async function ensurePeriodicJobsSeeded(): Promise<void> {
   await Promise.all([
     enqueueCurrentSlot("cleanup_rate_limit_counters", PERIODIC_INTERVAL_MS),
     enqueueCurrentSlot("cleanup_stuck_jobs", PERIODIC_INTERVAL_MS),
+    enqueueCurrentSlot("process_cadence_steps", CADENCE_PROCESSOR_INTERVAL_MS),
   ]);
 }

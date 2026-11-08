@@ -1378,3 +1378,94 @@ Caminho realista se o usuário decidir revisitar isso no futuro: iniciar
 o processo de verificação de negócio na Meta (fora do meu controle,
 prazo incerto) e, só depois dele aprovado, eu implemento a integração
 via API oficial — nunca via biblioteca não-oficial, mesmo que gratuita.
+
+## Módulo 7 — Cadências e Follow-up
+
+A auditoria original (ETAPA-0-AUDITORIA.md seção 9, item 8) pedia
+sequências de e-mail multi-etapa ("drip") para leads que não respondem
+a um primeiro contato — distinto do Módulo 6 (campanhas em lote, com
+IA gerando a mensagem): aqui o conteúdo de cada etapa é escrito **uma
+vez, por um humano**, ao montar a cadência, e o envio posterior de
+cada etapa é mecânico (um agendador comum, sem IA nenhuma envolvida em
+tempo de envio). Essa diferença é deliberada e documentada em
+comentário no próprio código (`module7_cadences.sql` e
+`cadence-processor.service.ts`): como o humano já aprovou o texto ao
+escrevê-lo, o envio automático de cada etapa não viola o princípio
+"nenhuma ação de IA que muda dados é automática" — não há IA aqui para
+violar o princípio.
+
+### O que foi implementado
+
+1. **Migration `module7_cadences`**: tabelas `cadences` (uma sequência
+   nomeada, status `active`/`archived`), `cadence_steps` (etapas
+   ordenadas com `day_offset`, `subject_template`, `body_template` —
+   templates com placeholders `{{contact_name}}`/`{{company_name}}`/
+   `{{sender_name}}`), `cadence_enrollments` (inscrição de um lead
+   específico numa cadência, com `next_run_at`, `current_step_order`,
+   `status` `active`/`paused`/`stopped`/`completed`, `unique(cadence_id,
+   lead_id)` — um lead não pode estar duas vezes na mesma cadência ao
+   mesmo tempo) e `cadence_step_sends` (histórico append-only de cada
+   envio individual, mesmo padrão de `campaign_messages`). RLS em
+   todas: membro lê, editor insere/atualiza; `cadence_step_sends` sem
+   policy de update/delete (nunca editável, só auditável). Índice
+   parcial `cadence_enrollments_due_idx ... where status = 'active'`
+   para o worker achar rapidamente só as inscrições vencidas.
+2. **Funções puras de composição** (`cadence-compose.ts`):
+   `renderCadenceTemplate` (substitui placeholders, nunca inventa um
+   valor ausente — deixa o placeholder literal se a variável não foi
+   passada, para o erro ficar visível em vez de silencioso),
+   `computeStepRunAt` (soma `day_offset` dias à data de início),
+   `decideCadenceStep` (decide se uma etapa deve ser enviada, pulada —
+   lead sem e-mail cadastrado — ou se a cadência inteira deve parar —
+   lead ganho/perdido, ou contato suprimido). 9 testes cobrindo cada
+   combinação.
+3. **Reaproveitamento explícito, não reimplementação**: supressão
+   (`isContactSuppressed`, fail-closed, Fase 10) e texto obrigatório de
+   descadastro por organização (`organization_profiles.unsubscribe_text`,
+   Módulo 6) são usados exatamente como estão — nenhuma cópia, nenhuma
+   lógica paralela.
+4. **Processamento assíncrono**: `processDueCadenceSteps` roda em lote
+   de 50 inscrições vencidas por execução, chamado pelo job periódico
+   `process_cadence_steps` (fila da Fase 10, intervalo de 15 minutos) —
+   nunca síncrono na requisição do usuário, porque cada ciclo pode
+   envolver centenas de inscrições e envios de e-mail reais. Falha de
+   credencial de e-mail não configurada reagenda a etapa em 24h (não
+   marca a inscrição como parada — a organização pode configurar o
+   Gmail depois e o drip continua de onde parou).
+5. **UI**: página `/cadences` (criar cadência, listar com contagem de
+   etapas e inscrições ativas) e `/cadences/[id]` (gerenciar etapas:
+   adicionar com ordem/offset/templates, remover, arquivar/reativar a
+   cadência). Na página do lead, um novo card "Cadências de
+   follow-up": inscrição manual (sempre uma decisão humana — nunca uma
+   cadência inicia sozinha), lista de inscrições atuais com
+   pausar/retomar e "Marcar como respondeu" (condição de parada manual
+   explícita pedida na auditoria, seção 9 item 8).
+6. Item de navegação "Cadências" adicionado ao menu do workspace.
+
+### O que esta fase explicitamente NÃO fez
+
+- **Nenhum canal além de e-mail.** O Módulo 8 (WhatsApp) foi cortado
+  nesta mesma fase — ver decisão acima — então cadências por WhatsApp
+  nunca foram uma opção real aqui, apesar de a auditoria mencionar
+  "e-mail e/ou WhatsApp".
+- **Sem editor de texto rico para os templates** — `subject_template`/
+  `body_template` são `textarea` simples (texto puro). Suficiente para
+  o escopo desta fase; HTML/rich text é uma melhoria futura, não uma
+  lacuna silenciosa.
+- **Sem reinscrição automática** depois de uma cadência parada — o
+  `unique(cadence_id, lead_id)` é deliberado; reinscrever é uma
+  decisão explícita de UI, nunca um reaproveitamento silencioso da
+  mesma linha de inscrição.
+- Nenhuma purga automática do histórico de `cadence_step_sends` — mesma
+  pendência já registrada para outras tabelas de histórico deste
+  projeto (campanhas, auditorias de site).
+
+### Testes
+
+Suíte completa permanece verde (266/266 — 9 novos testes em
+`cadence-compose.test.ts` cobrindo renderização de template,
+cálculo de `next_run_at` e as três decisões possíveis por etapa:
+enviar, pular, ou parar a cadência inteira). `next build`, `npx eslint
+.` e `npx tsc --noEmit` limpos. Migration aplicada ao projeto real;
+`get_advisors` (security) revisado — nenhum achado novo causado por
+este módulo (não introduz nenhuma função `SECURITY DEFINER`).

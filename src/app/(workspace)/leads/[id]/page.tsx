@@ -29,6 +29,9 @@ import { LeadScoreDimensionsCard } from "@/components/ai/lead-score-dimensions-c
 import { OutreachSection } from "@/components/ai/outreach-section";
 import { ProposalAssistantSection } from "@/components/ai/proposal-assistant-section";
 import { OutreachEmailComposer } from "@/components/outreach/outreach-email-composer";
+import { CadenceEnrollmentCard } from "@/components/cadences/cadence-enrollment-card";
+import { listCadences } from "@/modules/cadences/cadences.service";
+import { listEnrollmentsForLead } from "@/modules/cadences/cadence-enrollments.service";
 import { listLeadAnalyses } from "@/modules/ai/lead-scorer.service";
 import { getLatestLeadScoreDimensions } from "@/modules/leads/scoring/lead-score-dimensions.service";
 import {
@@ -61,11 +64,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     null) as LeadScoreResult | null;
   const latestScoreDimensions = await getLatestLeadScoreDimensions(supabase, activeOrganization.organizationId, id);
 
-  const [outreachHistory, defaultRecipientEmail, integrationStatus] = await Promise.all([
-    listOutreachEmails(supabase, activeOrganization.organizationId, id),
-    resolveDefaultRecipientEmail(supabase, activeOrganization.organizationId, lead.company_id),
-    getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
-  ]);
+  const [outreachHistory, defaultRecipientEmail, integrationStatus, activeCadences, cadenceEnrollments] =
+    await Promise.all([
+      listOutreachEmails(supabase, activeOrganization.organizationId, id),
+      resolveDefaultRecipientEmail(supabase, activeOrganization.organizationId, lead.company_id),
+      getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
+      listCadences(supabase, activeOrganization.organizationId),
+      listEnrollmentsForLead(supabase, activeOrganization.organizationId, id),
+    ]);
+  const availableCadences = activeCadences.filter((c) => c.status === "active");
 
   const stageOptions = stages.map((s) => ({
     id: s.id,
@@ -180,6 +187,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       </Card>
+
+      <CadenceEnrollmentCard leadId={lead.id} availableCadences={availableCadences} enrollments={cadenceEnrollments} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
         <LeadScoreSection leadId={lead.id} initialScore={latestScore} />
