@@ -7,6 +7,7 @@ import type { AIResult } from "@/lib/ai/provider";
 import { companyAnalysisSchema, type CompanyAnalysis } from "@/lib/ai/schemas";
 import { logger } from "@/lib/logger/logger";
 import { getCompanyById } from "@/modules/companies/companies.service";
+import { getLatestDigitalPresenceScore } from "@/modules/companies/scoring/digital-presence-score.service";
 import type { Database } from "@/types/database";
 
 import { buildCompanyAnalyzerInput, COMPANY_ANALYZER_INSTRUCTIONS, PROMPT_KEYS, PROMPT_VERSIONS } from "./prompts";
@@ -41,11 +42,26 @@ export async function analyzeCompany(
     .eq("organization_id", organizationId)
     .eq("is_active", true);
 
+  // Módulo 5 — único sinal novo acrescentado à entrada do analisador: a
+  // Pontuação de Presença Digital (Módulo 3), um fato determinístico já
+  // calculado pelo servidor. Best-effort — nunca bloqueia a análise em si
+  // se a empresa ainda não tiver nenhuma pontuação calculada.
+  let digitalPresenceScore: { score: number } | null = null;
+  try {
+    digitalPresenceScore = await getLatestDigitalPresenceScore(supabase, organizationId, companyId);
+  } catch (scoreError) {
+    logger.warn("Falha ao buscar pontuação de presença digital para o Company Analyzer", {
+      error: (scoreError as Error).message,
+      organizationId,
+      companyId,
+    });
+  }
+
   const result = await runStructuredAI(supabase, organizationId, {
     promptKey: PROMPT_KEYS.companyAnalyzer,
     promptVersion: PROMPT_VERSIONS.companyAnalyzer,
     instructions: COMPANY_ANALYZER_INSTRUCTIONS,
-    input: buildCompanyAnalyzerInput(company, services ?? []),
+    input: buildCompanyAnalyzerInput(company, services ?? [], digitalPresenceScore),
     schema: companyAnalysisSchema,
     schemaName: "company_analysis",
   });

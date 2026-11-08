@@ -1045,3 +1045,83 @@ sem sobreposição ou lacuna). `next build`, `npm run lint` e `npx tsc
 --noEmit` limpos. Migration aplicada ao projeto real — schema
 confirmado via `information_schema.columns`; `get_advisors` (security)
 não reportou nenhum achado novo causado por esta fase.
+
+## Módulo 5 — Recomendação de Serviços
+
+Antes de escrever qualquer código, reli a auditoria (seção 4) e investiguei
+o código real do Company Analyzer (Fase 5) — e encontrei algo que a
+auditoria não tinha capturado: o campo `opportunities` (`{service_id,
+service_name, reason, priority}[]`) já existe, já é alimentado com o
+catálogo real de serviços da organização, já é persistido em
+`ai_analyses` (`analysis_type='company_analysis'`) e já é renderizado na
+página da empresa (seção "Oportunidades"). Ou seja, a classificação da
+auditoria de que "nenhuma lógica de recomendação baseada em perfil de
+empresa" existia estava imprecisa — a lógica central já existe e funciona.
+
+Pela regra "preservar todas as funcionalidades existentes", este módulo
+**não duplica** essa IA com uma segunda chamada paralela. Em vez disso,
+fiz duas coisas genuinamente novas:
+
+### O que foi implementado
+
+1. **Sinal novo na entrada do Company Analyzer**: a Pontuação de
+   Presença Digital (Módulo 3) agora é passada como mais um fato
+   determinístico de entrada (`buildCompanyAnalyzerInput` ganhou um
+   parâmetro opcional `digitalPresenceScore`), com instrução explícita de
+   que a IA deve tratá-la como fato já calculado pelo servidor — nunca
+   recalculá-la ou substituí-la por estimativa própria. Como mudei o
+   texto de `COMPANY_ANALYZER_INSTRUCTIONS`, subi `PROMPT_VERSIONS.companyAnalyzer`
+   de `"v1"` para `"v2"` (regra do prompt mestre: nunca editar prompt de
+   produção sem versionar — análises antigas continuam com
+   `prompt_version="v1"` no histórico, intactas).
+   - Dados de enriquecimento (Módulo 1) **já chegavam** implicitamente ao
+     Company Analyzer, porque um campo aceito é gravado direto nas
+     colunas de `companies` (email/telefone/website/social_links) que
+     `formatCompanyFacts` já lê — não precisou de nenhum caminho de
+     entrada novo.
+   - Dimensões de Lead Scoring (Módulo 4) não se aplicam aqui: são
+     sinais por lead, e o Company Analyzer opera no nível de empresa.
+2. **View `latest_company_service_opportunities`** (migration
+   `module5_service_recommendations`): achata, para cada empresa não
+   arquivada, as `opportunities` da análise `company_analysis` mais
+   recente. **Nenhuma tabela nova** — respeita literalmente a proposta da
+   auditoria (seção 7) de reaproveitar `ai_analyses` sem schema novo; é
+   só uma VIEW de leitura, que não armazena nada por si só. Usa
+   `security_invoker = true` (confirmado Postgres 17 no projeto) para que
+   a RLS de `ai_analyses`/`companies` seja aplicada com o papel de quem
+   consulta — sem isso, a view rodaria com os privilégios de quem a
+   criou e ignoraria RLS.
+3. **Página `/recommendations`** ("Recomendações"): lista agregada de
+   oportunidades entre TODAS as empresas da organização, com filtro por
+   serviço e por prioridade, resumo por serviço no topo (contagem total
+   e quantas são de prioridade alta) e link direto para cada empresa.
+   Esse é o ganho real deste módulo: hoje só era possível ver
+   oportunidades abrindo empresa por empresa; agora um vendedor vê a
+   lista priorizada de uma vez. Item novo no menu lateral ("Recomendações").
+4. Ordenação pura e testável (`rankRecommendations`/`summarizeByService`
+   em `rank-recommendations.ts`) — prioridade alta→baixa, e dentro da
+   mesma prioridade, por `company_score` decrescente — mesmo padrão das
+   funções puras dos Módulos 3/4.
+
+### O que esta fase explicitamente NÃO fez
+
+- Não criou uma segunda chamada de IA dedicada a "recomendação de
+  serviço" — o `opportunities` do Company Analyzer já cumpre esse papel;
+  duplicar seria o oposto de "preservar funcionalidades existentes" e
+  gastaria IA/orçamento à toa.
+- Não alterou o schema `companyAnalysisSchema`/`opportunitySchema` nem a
+  UI existente de "Oportunidades" na página da empresa — continuam
+  exatamente como estavam.
+- Não criou nenhuma ação de mutação nova: `/recommendations` é
+  inteiramente leitura (reagregação do que o Company Analyzer já gerou).
+- Módulo 2 (Website Audit) continua pulado — decisão de negócio
+  pendente (PageSpeed/GCP, seção 6 da auditoria).
+
+### Testes
+
+243/243 passando (10 novos em `rank-recommendations.test.ts`). `next
+build`, `npm run lint` e `npx tsc --noEmit` limpos. Migration (a view)
+aplicada ao projeto real; `get_advisors` (security e performance) não
+reportou nenhum achado novo causado por esta fase — em particular,
+nenhum alerta de "Security Definer View", confirmando que
+`security_invoker=true` surtiu o efeito esperado.

@@ -1646,6 +1646,13 @@ export type Database = {
             referencedRelation: "ai_analyses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "outreach_emails_source_analysis_id_fkey"
+            columns: ["source_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "latest_company_service_opportunities"
+            referencedColumns: ["analysis_id"]
+          },
         ]
       }
       pipeline_stages: {
@@ -2179,7 +2186,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      latest_company_service_opportunities: {
+        Row: {
+          analysis_id: string | null
+          analyzed_at: string | null
+          company_id: string | null
+          company_name: string | null
+          company_score: number | null
+          organization_id: string | null
+          priority: string | null
+          reason: string | null
+          service_id: string | null
+          service_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_analyses_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "ai_analyses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       can_admin_org: { Args: { target_org: string }; Returns: boolean }

@@ -12,6 +12,7 @@ import {
   Receipt,
   Settings,
   Map,
+  Lightbulb,
 } from "lucide-react";
 
 /**
@@ -42,6 +43,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { href: "/assistant", label: "Assistente IA", icon: Sparkles },
       { href: "/services", label: "Serviços", icon: Wrench },
+      { href: "/recommendations", label: "Recomendações", icon: Lightbulb },
       { href: "/proposals", label: "Propostas", icon: FileText },
       { href: "/reports", label: "Relatórios", icon: BarChart3 },
     ],
