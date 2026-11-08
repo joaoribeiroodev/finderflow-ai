@@ -1469,3 +1469,76 @@ enviar, pular, ou parar a cadência inteira). `next build`, `npx eslint
 .` e `npx tsc --noEmit` limpos. Migration aplicada ao projeto real;
 `get_advisors` (security) revisado — nenhum achado novo causado por
 este módulo (não introduz nenhuma função `SECURITY DEFINER`).
+
+## Módulo 9 — Agente de Vendas IA
+
+A auditoria original (seção 9, item 9) pedia um agente de IA capaz de
+executar ações de vendas, com confirmação humana obrigatória antes de
+qualquer ação que altere dados. Antes de escrever qualquer código,
+investiguei as rotas `/assistant` e `/assistant/[id]` (já existentes
+desde a Fase 5) para não duplicar funcionalidade: **o Copilot
+conversacional da Fase 5 já é exatamente essa arquitetura** —
+`src/modules/ai/copilot.service.ts` já implementa um loop de
+tool-calling com allowlist fixa (`src/lib/ai/copilot-tools.ts`, nunca
+SQL/credenciais livres para o modelo), e toda ferramenta marcada
+`mutating: true` já exige confirmação explícita do usuário
+(`pending_tool_call` persistido no servidor, nunca confiado do
+cliente) antes de executar — nunca no mesmo turno em que o modelo a
+propõe.
+
+**Decisão**: não construir um agente novo e paralelo — isso duplicaria
+essa infraestrutura inteira (loop de confirmação, persistência de
+estado pendente, sanitização de dado de terceiros) só para chegar no
+mesmo lugar. Em vez disso, o Módulo 9 é esta allowlist **estendida**
+com ações e leituras dos módulos construídos depois do Copilot
+existir — presença digital (Módulo 3), auditoria de site (Módulo 2) e
+cadências de follow-up (Módulo 7) — para o mesmo agente poder agir
+sobre eles com o mesmo portão de confirmação.
+
+### O que foi implementado
+
+1. Duas ferramentas de leitura novas: `get_digital_presence_score` e
+   `get_website_audit`, ambas recebendo `leadId` e resolvendo a
+   empresa internamente (nunca expõem `company_id` como argumento
+   separado para o modelo inventar). Retornam `null`/mensagem honesta
+   quando nunca foram calculadas — nunca um valor estimado pelo
+   modelo.
+2. Uma ferramenta de leitura `list_active_cadences` (nome + número de
+   etapas das cadências ativas da organização) para o agente saber em
+   qual cadência inscrever um lead antes de propor a ação.
+3. Uma ferramenta mutante nova, `enroll_lead_in_cadence` — inscreve um
+   lead numa cadência, reaproveitando `enrollLeadInCadence` (Módulo 7)
+   sem duplicar a lógica de validação (já rejeita cadência sem etapas
+   e inscrição duplicada). Marcada `mutating: true`: como toda ação
+   que altera dados no Copilot, só executa depois da confirmação
+   explícita do usuário na interface.
+4. `COPILOT_INSTRUCTIONS` (prompt versionado, `v1` → `v2`) ganhou um
+   parágrafo deixando explícito o papel de "agente de vendas" e
+   reforçando que a confiança do modelo na ação nunca substitui a
+   confirmação do usuário, nem mesmo quando o modelo "tem certeza".
+
+### O que esta fase explicitamente NÃO fez
+
+- **Nenhuma automação proativa** — o agente só age quando o usuário
+  inicia a conversa e pede algo; ele nunca varre leads sozinho
+  decidindo quem inscrever em uma cadência ou quando rodar uma
+  auditoria. Isso seria uma mudança de categoria (de assistente
+  reativo para rotina autônoma em background) fora do escopo pedido
+  pela auditoria para este módulo.
+- **Nenhuma ferramenta nova para Módulo 6 (campanhas) ou proposta** —
+  o escopo desta extensão ficou deliberadamente restrito aos módulos
+  cujos sinais fazem sentido num fluxo de decisão "ver sinal → agir":
+  presença digital/auditoria informam a decisão, cadência é a ação.
+  Disparar uma campanha ou gerar uma proposta via chat é uma extensão
+  natural futura, não implementada agora para manter o escopo desta
+  fase gerenciável.
+
+### Testes
+
+Suíte completa permanece verde (270/270 — 4 novos testes em
+`copilot-tools.test.ts` cobrindo as 3 ferramentas de leitura novas e a
+validação de argumentos + `describeForConfirmation` de
+`enroll_lead_in_cadence`). `next build`, `npx eslint .` e `npx tsc
+--noEmit` limpos. Nenhuma migration nova — reaproveita tabelas e
+funções já existentes, então não há achado novo de `get_advisors` a
+revisar.

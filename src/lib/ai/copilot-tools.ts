@@ -7,6 +7,14 @@ import { assertCanEditOrganization } from "@/lib/permissions/permissions";
 import type { ConversationToolDefinition } from "@/lib/ai/provider";
 import { createTask } from "@/modules/leads/crm-items.service";
 import { getLeadDetail, listLeads, moveLeadStage, InvalidStageTransitionError } from "@/modules/leads/leads.service";
+import { getLatestDigitalPresenceScore } from "@/modules/companies/scoring/digital-presence-score.service";
+import { getLatestWebsiteAudit } from "@/modules/companies/website-audit/website-audit.service";
+import { listCadences } from "@/modules/cadences/cadences.service";
+import {
+  enrollLeadInCadence,
+  AlreadyEnrolledError,
+  CadenceHasNoStepsError,
+} from "@/modules/cadences/cadence-enrollments.service";
 import type { Database } from "@/types/database";
 
 type Supabase = SupabaseClient<Database>;
@@ -85,6 +93,25 @@ const updateLeadStageArgs = z.object({
   leadId: z.string().uuid(),
   stageId: z.string().uuid(),
   lossReason: z.string().trim().max(500).nullable().optional(),
+});
+
+// Módulo 9 — Agente de Vendas IA: ferramentas novas que dão ao mesmo
+// Copilot (Fase 5) acesso a sinais e ações de módulos construídos depois
+// dele (presença digital, auditoria de site, cadências), com o mesmo
+// portão de confirmação para qualquer uma que altere dados.
+const getDigitalPresenceScoreArgs = z.object({
+  leadId: z.string().uuid(),
+});
+
+const getWebsiteAuditArgs = z.object({
+  leadId: z.string().uuid(),
+});
+
+const listActiveCadencesArgs = z.object({});
+
+const enrollLeadInCadenceArgs = z.object({
+  leadId: z.string().uuid(),
+  cadenceId: z.string().uuid(),
 });
 
 export const COPILOT_TOOLS: CopilotToolDefinition[] = [
@@ -268,6 +295,82 @@ export const COPILOT_TOOLS: CopilotToolDefinition[] = [
         return { success: true };
       } catch (error) {
         if (error instanceof InvalidStageTransitionError) {
+          return { success: false, error: error.message };
+        }
+        throw error;
+      }
+    },
+  },
+  {
+    name: "get_digital_presence_score",
+    description:
+      "Retorna a última Pontuação de Presença Digital (0-100, fórmula determinística — nunca uma opinião de IA) calculada para a empresa do lead, ou null se nunca foi calculada.",
+    parameters: getDigitalPresenceScoreArgs,
+    mutating: false,
+    async execute(supabase, organizationId, _userId, rawArgs) {
+      const args = getDigitalPresenceScoreArgs.parse(rawArgs);
+      const lead = await getLeadDetail(supabase, organizationId, args.leadId);
+      if (!lead) return { error: "Lead não encontrado." };
+      const score = await getLatestDigitalPresenceScore(supabase, organizationId, lead.company_id);
+      if (!score) return { score: null, message: "Nenhuma pontuação de presença digital calculada ainda." };
+      return { score: score.score, computedAt: score.computedAt, criteria: score.criteria };
+    },
+  },
+  {
+    name: "get_website_audit",
+    description:
+      "Retorna a última auditoria de site (PageSpeed: scores de desempenho/acessibilidade/boas práticas/SEO, Core Web Vitals e problemas encontrados) da empresa do lead, ou null se nunca foi rodada.",
+    parameters: getWebsiteAuditArgs,
+    mutating: false,
+    async execute(supabase, organizationId, _userId, rawArgs) {
+      const args = getWebsiteAuditArgs.parse(rawArgs);
+      const lead = await getLeadDetail(supabase, organizationId, args.leadId);
+      if (!lead) return { error: "Lead não encontrado." };
+      const audit = await getLatestWebsiteAudit(supabase, organizationId, lead.company_id);
+      if (!audit) return { audit: null, message: "Nenhuma auditoria de site rodada ainda." };
+      return {
+        status: audit.status,
+        performanceScore: audit.performanceScore,
+        accessibilityScore: audit.accessibilityScore,
+        bestPracticesScore: audit.bestPracticesScore,
+        seoScore: audit.seoScore,
+        issues: audit.issues,
+        runAt: audit.runAt,
+      };
+    },
+  },
+  {
+    name: "list_active_cadences",
+    description:
+      "Lista as cadências de follow-up ativas da organização (nome, número de etapas), para decidir em qual inscrever um lead.",
+    parameters: listActiveCadencesArgs,
+    mutating: false,
+    async execute(supabase, organizationId, _userId, rawArgs) {
+      listActiveCadencesArgs.parse(rawArgs);
+      const cadences = await listCadences(supabase, organizationId);
+      return {
+        cadences: cadences
+          .filter((c) => c.status === "active")
+          .map((c) => ({ id: c.id, name: c.name, stepCount: c.stepCount })),
+      };
+    },
+  },
+  {
+    name: "enroll_lead_in_cadence",
+    description:
+      "Inscreve um lead numa cadência de follow-up (sequência de e-mails com template escrito por um humano, enviados automaticamente depois). Requer confirmação do usuário antes de executar.",
+    parameters: enrollLeadInCadenceArgs,
+    mutating: true,
+    describeForConfirmation: (args) =>
+      `Inscrever o lead ${args.leadId as string} na cadência ${args.cadenceId as string}.`,
+    async execute(supabase, organizationId, _userId, rawArgs) {
+      const args = enrollLeadInCadenceArgs.parse(rawArgs);
+      await assertCanEditOrganization(supabase, organizationId);
+      try {
+        await enrollLeadInCadence(supabase, organizationId, args.cadenceId, args.leadId);
+        return { success: true };
+      } catch (error) {
+        if (error instanceof AlreadyEnrolledError || error instanceof CadenceHasNoStepsError) {
           return { success: false, error: error.message };
         }
         throw error;

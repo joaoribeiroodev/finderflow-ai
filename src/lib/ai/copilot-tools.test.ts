@@ -8,13 +8,23 @@ describe("COPILOT_TOOLS (allowlist)", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("marca create_task e update_lead_stage como mutating (exigem confirmação)", () => {
+  it("marca create_task, update_lead_stage e enroll_lead_in_cadence como mutating (exigem confirmação)", () => {
     expect(getCopilotTool("create_task")?.mutating).toBe(true);
     expect(getCopilotTool("update_lead_stage")?.mutating).toBe(true);
+    expect(getCopilotTool("enroll_lead_in_cadence")?.mutating).toBe(true);
   });
 
   it("marca as ferramentas de leitura como não-mutating", () => {
-    for (const name of ["list_leads", "get_lead_details", "get_tasks_due", "get_pipeline_metrics", "get_sales_report"]) {
+    for (const name of [
+      "list_leads",
+      "get_lead_details",
+      "get_tasks_due",
+      "get_pipeline_metrics",
+      "get_sales_report",
+      "get_digital_presence_score",
+      "get_website_audit",
+      "list_active_cadences",
+    ]) {
       expect(getCopilotTool(name)?.mutating).toBe(false);
     }
   });
@@ -83,6 +93,30 @@ describe("validação dos argumentos de cada ferramenta", () => {
     expect(tool.parameters.safeParse({ sinceDays: 1000 }).success).toBe(false);
     expect(tool.parameters.safeParse({ sinceDays: 30 }).success).toBe(true);
   });
+
+  it("get_digital_presence_score e get_website_audit exigem leadId válido (UUID)", () => {
+    for (const name of ["get_digital_presence_score", "get_website_audit"]) {
+      const tool = getCopilotTool(name)!;
+      expect(tool.parameters.safeParse({ leadId: "não-é-uuid" }).success).toBe(false);
+      expect(tool.parameters.safeParse({ leadId: "11111111-1111-4111-8111-111111111111" }).success).toBe(true);
+    }
+  });
+
+  it("list_active_cadences aceita chamada sem nenhum argumento", () => {
+    const tool = getCopilotTool("list_active_cadences")!;
+    expect(tool.parameters.safeParse({}).success).toBe(true);
+  });
+
+  it("enroll_lead_in_cadence exige leadId e cadenceId válidos", () => {
+    const tool = getCopilotTool("enroll_lead_in_cadence")!;
+    expect(tool.parameters.safeParse({ leadId: "x", cadenceId: "y" }).success).toBe(false);
+    expect(
+      tool.parameters.safeParse({
+        leadId: "11111111-1111-4111-8111-111111111111",
+        cadenceId: "22222222-2222-4222-8222-222222222222",
+      }).success,
+    ).toBe(true);
+  });
 });
 
 describe("describeForConfirmation não executa a ação, só descreve", () => {
@@ -93,5 +127,15 @@ describe("describeForConfirmation não executa a ação, só descreve", () => {
       title: "Ligar para o cliente",
     });
     expect(description).toContain("Ligar para o cliente");
+  });
+
+  it("enroll_lead_in_cadence gera uma descrição legível a partir dos argumentos", () => {
+    const tool = getCopilotTool("enroll_lead_in_cadence")!;
+    const description = tool.describeForConfirmation?.({
+      leadId: "11111111-1111-4111-8111-111111111111",
+      cadenceId: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(description).toContain("11111111-1111-4111-8111-111111111111");
+    expect(description).toContain("22222222-2222-4222-8222-222222222222");
   });
 });
