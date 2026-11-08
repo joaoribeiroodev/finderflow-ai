@@ -1636,3 +1636,49 @@ schema incompleto.
 Nenhum fornecedor pago foi contratado nesta fase. Todas as integrações
 novas (PageSpeed) usam cota gratuita por organização, no mesmo padrão
 de credencial já estabelecido (Asaas/OpenAI/Gmail).
+
+## Incidente: produção travada desde a Fase 10 (cron incompatível com plano Hobby)
+
+Ao checar os deploys antes de publicar o Módulo 10, descobri que **todo
+deploy de produção desde a Fase 10** (11 deploys consecutivos, de
+`320e9b2` "fundações de infra" até `d110c17` "Módulo 10") falhou com:
+
+```
+Hobby accounts are limited to daily cron jobs. This cron expression
+(*/5 * * * *) would run more than once per day. Upgrade to the Pro
+plan to unlock all Cron Jobs features on Vercel.
+```
+
+**Causa**: a Fase 10 adicionou `vercel.json` com um cron a cada 5
+minutos para `/api/v1/jobs/worker` (fila assíncrona), sem checar que a
+conta Vercel deste projeto é Hobby (gratuita) — que só permite cron
+**no máximo uma vez por dia**. A Vercel recusa o deploy inteiro quando
+isso acontece (não é um erro de build do Next.js, por isso não
+aparecia em nenhuma verificação local — `npm run build` nunca passa
+por essa checagem de plano). Resultado prático: **a produção ficou
+congelada no deploy de `33d7c6d`** (antes até da Fase 10) durante todo
+este tempo — nenhuma das Fases 10/Módulos 1-10 chegou a rodar em
+produção, embora todas estivessem corretas no repositório e
+verificadas localmente.
+
+**Correção aplicada agora**: `vercel.json` ajustado para `0 6 * * *`
+(uma vez por dia, 03:00 no horário de Brasília) — dentro do limite do
+plano Hobby, sem contratar nada novo (mantém a premissa de só usar o
+que é gratuito).
+
+**Custo real dessa correção, documentado sem rodeio**: a fila
+assíncrona (enriquecimento de empresa, envio de e-mail de outreach em
+lote, envio de campanhas, processamento de etapas de cadência) só é
+drenada **uma vez por dia** agora, em vez de a cada 5/15 minutos. Isso
+é uma degradação de experiência real, não só um detalhe técnico — um
+lead inscrito numa cadência pela manhã só vai receber o próximo e-mail
+no ciclo do dia seguinte, por exemplo.
+
+**Alternativa melhor, não aplicada agora** (fica como próximo passo
+recomendado, não decidido unilateralmente): usar um pinger HTTP externo
+gratuito (ex.: cron-job.org, tem tier grátis que chama uma URL a cada 5
+minutos) apontando para `/api/v1/jobs/worker` com o `CRON_SECRET` no
+header — mantém a cadência de processamento rápida, continua 100%
+gratuito, e não depende do limite de cron da própria Vercel. Não
+configurei isso agora porque exige criar uma conta externa e decidir
+isso com o usuário, fora do escopo de "corrigir o deploy e publicar".
