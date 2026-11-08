@@ -811,6 +811,55 @@ export type Database = {
           },
         ]
       }
+      digital_presence_scores: {
+        Row: {
+          company_id: string
+          computed_at: string
+          criteria: Json
+          id: string
+          organization_id: string
+          score: number
+        }
+        Insert: {
+          company_id: string
+          computed_at?: string
+          criteria?: Json
+          id?: string
+          organization_id: string
+          score: number
+        }
+        Update: {
+          company_id?: string
+          computed_at?: string
+          criteria?: Json
+          id?: string
+          organization_id?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "digital_presence_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "digital_presence_scores_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "digital_presence_scores_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entitlements: {
         Row: {
           feature_key: string

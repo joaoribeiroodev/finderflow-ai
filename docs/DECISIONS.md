@@ -939,3 +939,53 @@ deduplicação). `next build`, `npm run lint` e `npx tsc --noEmit`
 limpos. Migration aplicada ao projeto real (`company_enrichment_fields`
 — schema confirmado via `information_schema.columns`); `get_advisors`
 (security) não reportou nenhum achado novo causado por esta fase.
+
+## Módulo 3 — Digital Presence Score
+
+Pulei o Módulo 2 (Website Audit) de propósito: a ordem oficial do plano
+(`ETAPA-0-AUDITORIA.md` seção 9) coloca o Módulo 3 antes — ele depende
+do Módulo 1 estar emitindo dados de contato/redes sociais, o que agora é
+o caso, enquanto o Módulo 2 só depende de uma integração externa isolada
+(PageSpeed) e pode ser feito em paralelo depois.
+
+### O que foi implementado
+
+- Tabela nova `digital_presence_scores`: **histórico, nunca sobrescreve**
+  — cada recálculo insere uma linha nova com `score` (0-100) e `criteria`
+  (pesos usados + sinais brutos daquele cálculo), para auditar por que o
+  score mudou entre duas datas. RLS tenant-scoped; de propósito só com
+  policy de `select`/`insert` (é um log de auditoria do próprio score,
+  não algo que se edita ou apaga pela aplicação).
+- Cálculo **puramente determinístico por fórmula de pesos**, nunca IA —
+  mesmo princípio do Sales Analyst da Fase 7 ("a IA só interpreta números
+  já calculados pelo servidor"): aqui não há nem IA interpretando, é só
+  uma fórmula transparente e testável (`digital-presence-score.ts`, função
+  pura, sem I/O). Pesos: site 30, e-mail 15, telefone 15, até 4 redes
+  sociais a 10 cada (máx. 40) — soma exatamente 100, verificado por teste.
+- Recálculo **automático**: toda vez que uma proposta de enriquecimento
+  (Módulo 1) é aceita, o score é recalculado e uma nova linha é gravada —
+  best-effort, nunca bloqueia o aceite em si se falhar (só loga).
+- Recálculo **manual**: botão "Recalcular" na página da empresa
+  (`DigitalPresenceScoreCard`), para empresas com dados de contato
+  anteriores ao Módulo 1 existir, que nunca passaram pelo gatilho
+  automático.
+- Auditoria (`digital_presence_score.recompute`) via `logAudit()`.
+
+### O que esta fase explicitamente NÃO fez
+
+- Nenhuma integração com Website Audit (Módulo 2) — a pontuação de
+  presença digital não inclui, por ora, performance/SEO técnico do site,
+  só a existência dos canais de contato.
+- Nenhuma exibição do score na listagem de empresas (só no detalhe) —
+  deixado para quando o Módulo 4 (Lead Scoring 2.0) ou um ajuste de UI
+  puro precisar disso; o cálculo e o histórico já existem ponta a ponta.
+- Nenhum recálculo em lote/automático por cron — só nos dois gatilhos
+  acima (aceite de campo e botão manual).
+
+### Testes
+
+230/230 passando (8 novos em `digital-presence-score.test.ts`, incluindo
+a invariante "pesos somam 100"). `next build`, `npm run lint` e `npx tsc
+--noEmit` limpos. Migration aplicada ao projeto real — schema confirmado
+via `information_schema.columns`; `get_advisors` (security) não reportou
+nenhum achado novo causado por esta fase.

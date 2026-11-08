@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger/logger";
 import { getCompanyById } from "@/modules/companies/companies.service";
 import { getWebPresenceChecker } from "@/modules/companies/presence/get-web-presence-checker";
+import { recomputeDigitalPresenceScore } from "@/modules/companies/scoring/digital-presence-score.service";
 import type { Database } from "@/types/database";
 
 import { extractContactFields, type ExtractedField } from "./extract-contacts";
@@ -294,6 +295,19 @@ export async function reviewEnrichmentField(
         });
         throw new Error("Não foi possível aplicar o valor aceito à empresa.");
       }
+    }
+
+    // Módulo 3 depende dos dados que o Módulo 1 acabou de confirmar — recalcula
+    // a pontuação de presença digital, mas nunca deixa essa recomputação
+    // secundária bloquear o aceite em si (best-effort, só loga se falhar).
+    try {
+      await recomputeDigitalPresenceScore(supabase, organizationId, field.company_id);
+    } catch (scoreError) {
+      logger.warn("Falha ao recalcular pontuação de presença digital após aceite de campo", {
+        error: (scoreError as Error).message,
+        organizationId,
+        companyId: field.company_id,
+      });
     }
   }
 
