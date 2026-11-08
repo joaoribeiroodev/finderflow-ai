@@ -13,6 +13,7 @@ import {
   AsaasCredentialsForm,
   GmailCredentialsForm,
   OpenAiCredentialsForm,
+  PageSpeedCredentialsForm,
 } from "@/components/settings/integration-credentials-form";
 import { OrganizationProfileForm } from "@/components/settings/organization-profile-form";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,7 @@ export default async function SettingsPage() {
           configured={integrationStatus.openaiConfigured}
           model={integrationStatus.openaiModel}
         />
+        <PageSpeedCredentialsForm configured={integrationStatus.pagespeedConfigured} />
         <GmailCredentialsForm
           configured={integrationStatus.gmailConfigured}
           email={integrationStatus.gmailEmail}

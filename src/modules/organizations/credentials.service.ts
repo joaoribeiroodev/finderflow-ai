@@ -14,6 +14,7 @@ export interface OrganizationIntegrationStatus {
   openaiModel: string | null;
   gmailConfigured: boolean;
   gmailEmail: string | null;
+  pagespeedConfigured: boolean;
 }
 
 const DEFAULT_STATUS: OrganizationIntegrationStatus = {
@@ -23,6 +24,7 @@ const DEFAULT_STATUS: OrganizationIntegrationStatus = {
   openaiModel: null,
   gmailConfigured: false,
   gmailEmail: null,
+  pagespeedConfigured: false,
 };
 
 /**
@@ -38,7 +40,7 @@ export async function getOrganizationIntegrationStatus(
   const { data, error } = await supabase
     .from("organization_integration_credentials")
     .select(
-      "asaas_environment, asaas_configured_at, openai_model, openai_configured_at, gmail_email, gmail_configured_at",
+      "asaas_environment, asaas_configured_at, openai_model, openai_configured_at, gmail_email, gmail_configured_at, pagespeed_configured_at",
     )
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -60,5 +62,6 @@ export async function getOrganizationIntegrationStatus(
     openaiModel: data.openai_model,
     gmailConfigured: Boolean(data.gmail_configured_at),
     gmailEmail: data.gmail_email,
+    pagespeedConfigured: Boolean(data.pagespeed_configured_at),
   };
 }

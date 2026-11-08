@@ -1222,3 +1222,95 @@ nenhum dos dois:
 build`, `npm run lint` e `npx tsc --noEmit` limpos. Migration aplicada
 ao projeto real; `get_advisors` (security) sem nenhum achado novo
 causado por esta fase.
+
+## Implementação completa sob a premissa "só integrações gratuitas/open source"
+
+A partir deste ponto, o usuário autorizou implementar **todo o restante
+do plano de uma vez** (Módulos 2, 7, 8, 9, 10), sob uma premissa nova e
+explícita: usar só integrações gratuitas ou alternativas open source; o
+que não for possível sob essa premissa deve ser **cortado do sistema**,
+com a decisão documentada aqui, em vez de inferido ou implementado com
+custo recorrente sem aprovação. As seções abaixo (Módulos 2, 7, 9, 10 e
+a decisão de corte do Módulo 8) são o resultado dessa diretriz.
+
+## Módulo 2 — Website Audit (PageSpeed Insights)
+
+A auditoria original (ETAPA-0-AUDITORIA.md seção 6) listava este módulo
+como dependente de uma decisão de negócio: "precisa de chave de API do
+Google Cloud... requer projeto GCP e possivelmente billing habilitado".
+Sob a premissa gratuita/open-source desta fase, resolvo o bloqueio sem
+precisar perguntar de novo: a **Google PageSpeed Insights API v5** tem
+cota gratuita generosa (25.000 requisições/dia por chave) e **não exige
+conta de faturamento habilitada no Google Cloud** para esse uso — só a
+API "PageSpeed Insights API" ativada em um projeto GCP gratuito e uma
+chave de API. Isso desbloqueia o módulo dentro da premissa do usuário.
+
+### O que foi implementado
+
+1. **Migration `module2_website_audit`**: estende
+   `organization_integration_credentials` com `pagespeed_secret_id`/
+   `pagespeed_configured_at` e as funções `set_org_pagespeed_credentials`/
+   `clear_org_pagespeed_credentials`/`get_org_pagespeed_api_key`
+   (`SECURITY DEFINER`, Vault) — **exatamente o mesmo padrão** já usado
+   para Asaas/OpenAI/Gmail (Fase 9): cada organização usa sua própria
+   chave gratuita, nunca uma chave global do FinderFlow. Nova tabela
+   `website_audits` (histórico append-only, mesmo princípio de
+   `digital_presence_scores`: nunca sobrescreve, inclusive quando a
+   auditoria falha — grava `status='failed'` + `error_message`).
+2. **Correção de segurança descoberta durante esta migration**: o
+   default ACL deste projeto hoje concede `EXECUTE` a `anon`
+   automaticamente na criação de qualquer função nova (diferente do
+   momento em que as funções Asaas/OpenAI/Gmail foram criadas) — as 3
+   funções novas de credencial PageSpeed nasceram com essa concessão
+   indesejada; corrigido com um `revoke` explícito de `anon`, e já
+   embutido na própria migration para qualquer ambiente novo.
+3. **Cliente PageSpeed** (`src/lib/integrations/pagespeed-client.ts`):
+   chamada HTTP separada do parsing — `extractWebsiteAuditSignals` é
+   função pura e testável sem rede, extrai os 4 scores (desempenho,
+   acessibilidade, boas práticas, SEO, convertidos de 0-1 para 0-100),
+   as 3 Core Web Vitals (LCP, CLS, TBT) e até 6 problemas (audits com
+   score < 0.9 — convenção do próprio Lighthouse) de uma lista fixa de
+   auditorias relevantes. Nunca inventa número: categoria ausente na
+   resposta vira `null`, não um valor arbitrário.
+4. **`website-audit.service.ts`**: `runWebsiteAudit` roda de forma
+   síncrona (não passa pela fila assíncrona da Fase 10 nesta primeira
+   versão — uma chamada à PageSpeed API responde em poucos segundos;
+   timeout de 25s dá margem segura dentro do limite de função da
+   Vercel). Decisão de escopo deliberada, documentada aqui em vez de
+   escondida.
+5. **Rate limit por organização**: 20 auditorias/hora via
+   `checkDistributedRateLimit` (Fase 10) — mitiga o risco #5 da
+   auditoria ("rate limiting não distribuído em frente a provedores
+   externos... pode gerar custo inesperado ou banimento do provedor");
+   mesmo a cota do PageSpeed sendo gratuita, protege contra um loop
+   acidental esgotar a cota diária da organização.
+6. UI: formulário de chave em Configurações → Integrações (mesmo
+   padrão visual de Asaas/OpenAI/Gmail) e um novo card "Auditoria de
+   site" na página da empresa (scores, Core Web Vitals, lista de
+   problemas, botão "Rodar auditoria" — desabilitado sem site
+   cadastrado ou sem a chave configurada, com orientação direta para
+   Configurações).
+
+### O que esta fase explicitamente NÃO fez
+
+- **Não integrei o resultado da auditoria ao Digital Presence Score
+  (Módulo 3) nem ao Company Analyzer** — a auditoria original sugeria
+  isso como possível ("e/ou"), não como obrigatório; dado o volume de
+  módulos desta fase, mantive o Website Audit como módulo autocontido
+  e testável isoladamente. Possível melhoria futura, não uma lacuna
+  silenciosa.
+- Só a estratégia `mobile` é rodada automaticamente (o schema já aceita
+  `desktop` via `strategy`, mas não há botão para isso na UI ainda).
+- Nenhuma purga automática do histórico de auditorias — mesma pendência
+  já registrada para outras tabelas de histórico deste projeto.
+
+### Testes
+
+Suíte completa permanece verde (257/257, 5 novos em
+`pagespeed-client.test.ts` cobrindo o parser puro: conversão de score,
+extração de Core Web Vitals, seleção de problemas por score < 0.9,
+ausência de invenção de dado quando a resposta vem vazia). `next
+build`, `npm run lint` e `npx tsc --noEmit` limpos. Migration aplicada
+ao projeto real; `get_advisors` (security) revisado — achado de `anon`
+nas 3 funções novas corrigido na mesma migration, sem achados novos
+restantes causados por esta fase.

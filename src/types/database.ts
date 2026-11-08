@@ -1528,6 +1528,8 @@ export type Database = {
           openai_model: string | null
           openai_secret_id: string | null
           organization_id: string
+          pagespeed_configured_at: string | null
+          pagespeed_secret_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1541,6 +1543,8 @@ export type Database = {
           openai_model?: string | null
           openai_secret_id?: string | null
           organization_id: string
+          pagespeed_configured_at?: string | null
+          pagespeed_secret_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1554,6 +1558,8 @@ export type Database = {
           openai_model?: string | null
           openai_secret_id?: string | null
           organization_id?: string
+          pagespeed_configured_at?: string | null
+          pagespeed_secret_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2399,6 +2405,88 @@ export type Database = {
           },
         ]
       }
+      website_audits: {
+        Row: {
+          accessibility_score: number | null
+          best_practices_score: number | null
+          company_id: string
+          cumulative_layout_shift: number | null
+          error_message: string | null
+          id: string
+          issues: Json
+          largest_contentful_paint_ms: number | null
+          organization_id: string
+          performance_score: number | null
+          provider: string
+          run_at: string
+          seo_score: number | null
+          status: string
+          strategy: string
+          total_blocking_time_ms: number | null
+          url: string
+        }
+        Insert: {
+          accessibility_score?: number | null
+          best_practices_score?: number | null
+          company_id: string
+          cumulative_layout_shift?: number | null
+          error_message?: string | null
+          id?: string
+          issues?: Json
+          largest_contentful_paint_ms?: number | null
+          organization_id: string
+          performance_score?: number | null
+          provider?: string
+          run_at?: string
+          seo_score?: number | null
+          status?: string
+          strategy?: string
+          total_blocking_time_ms?: number | null
+          url: string
+        }
+        Update: {
+          accessibility_score?: number | null
+          best_practices_score?: number | null
+          company_id?: string
+          cumulative_layout_shift?: number | null
+          error_message?: string | null
+          id?: string
+          issues?: Json
+          largest_contentful_paint_ms?: number | null
+          organization_id?: string
+          performance_score?: number | null
+          provider?: string
+          run_at?: string
+          seo_score?: number | null
+          status?: string
+          strategy?: string
+          total_blocking_time_ms?: number | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_audits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_audits_company_same_org_fk"
+            columns: ["organization_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "website_audits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       latest_company_service_opportunities: {
@@ -2493,6 +2581,10 @@ export type Database = {
         Args: { p_org: string }
         Returns: undefined
       }
+      clear_org_pagespeed_credentials: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
       count_ai_usage_in_period: {
         Args: {
           p_organization_id: string
@@ -2535,6 +2627,7 @@ export type Database = {
       get_org_asaas_api_key: { Args: { p_org: string }; Returns: string }
       get_org_gmail_app_password: { Args: { p_org: string }; Returns: string }
       get_org_openai_api_key: { Args: { p_org: string }; Returns: string }
+      get_org_pagespeed_api_key: { Args: { p_org: string }; Returns: string }
       has_org_role: {
         Args: {
           allowed_roles: Database["public"]["Enums"]["org_role"][]
@@ -2634,6 +2727,10 @@ export type Database = {
       }
       set_org_openai_credentials: {
         Args: { p_api_key: string; p_model?: string; p_org: string }
+        Returns: undefined
+      }
+      set_org_pagespeed_credentials: {
+        Args: { p_api_key: string; p_org: string }
         Returns: undefined
       }
       shares_org_with: { Args: { target_user: string }; Returns: boolean }
@@ -2794,6 +2891,7 @@ export const Constants = {
     },
   },
 } as const
+
 
 export type OrgRole = Database["public"]["Enums"]["org_role"];
 export type MemberStatus = "invited" | "active" | "suspended";

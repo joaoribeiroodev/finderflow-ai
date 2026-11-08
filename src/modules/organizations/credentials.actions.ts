@@ -214,6 +214,80 @@ export async function saveGmailCredentialsAction(
   return { success: true, message: "Conta Gmail conectada com sucesso." };
 }
 
+/**
+ * Chave de API da Google PageSpeed Insights, usada pelo Módulo 2
+ * (Website Audit) — gratuita, cota generosa (25k req/dia), não exige
+ * faturamento habilitado no Google Cloud (ver docs/DECISIONS.md e
+ * migration 20261108054539_module2_website_audit.sql).
+ */
+export async function savePageSpeedCredentialsAction(
+  _prev: CredentialsActionResult,
+  formData: FormData,
+): Promise<CredentialsActionResult> {
+  const apiKey = String(formData.get("apiKey") ?? "").trim();
+
+  if (!apiKey) {
+    return { success: false, message: "Informe a chave de API da PageSpeed Insights." };
+  }
+
+  const org = await requireActiveOrganization();
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("set_org_pagespeed_credentials", {
+    p_org: org.organizationId,
+    p_api_key: apiKey,
+  });
+
+  if (error) {
+    logger.error("Falha ao salvar credenciais PageSpeed da organização", {
+      error: error.message,
+      organizationId: org.organizationId,
+    });
+    return {
+      success: false,
+      message: "Não foi possível salvar a chave da PageSpeed. Confirme que você é owner/admin da organização.",
+    };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "integration_credentials.set",
+    resourceType: "organization_integration_credentials",
+    metadata: { provider: "pagespeed" },
+  });
+
+  revalidatePath("/settings");
+  return { success: true, message: "Chave da PageSpeed Insights salva com sucesso." };
+}
+
+export async function clearPageSpeedCredentialsAction(): Promise<void> {
+  const org = await requireActiveOrganization();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("clear_org_pagespeed_credentials", { p_org: org.organizationId });
+  if (error) {
+    logger.error("Falha ao remover credenciais PageSpeed da organização", {
+      error: error.message,
+      organizationId: org.organizationId,
+    });
+  } else {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await logAudit({
+      organizationId: org.organizationId,
+      actorId: user?.id ?? null,
+      action: "integration_credentials.clear",
+      resourceType: "organization_integration_credentials",
+      metadata: { provider: "pagespeed" },
+    });
+  }
+  revalidatePath("/settings");
+}
+
 export async function clearGmailCredentialsAction(): Promise<void> {
   const org = await requireActiveOrganization();
   const supabase = await createClient();

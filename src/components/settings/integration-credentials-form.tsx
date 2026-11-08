@@ -9,9 +9,11 @@ import {
   clearAsaasCredentialsAction,
   clearGmailCredentialsAction,
   clearOpenAiCredentialsAction,
+  clearPageSpeedCredentialsAction,
   saveAsaasCredentialsAction,
   saveGmailCredentialsAction,
   saveOpenAiCredentialsAction,
+  savePageSpeedCredentialsAction,
   type CredentialsActionResult,
 } from "@/modules/organizations/credentials.actions";
 
@@ -137,6 +139,59 @@ export function OpenAiCredentialsForm({
         <form action={clearOpenAiCredentialsAction}>
           <Button type="submit" size="sm" variant="ghost">
             Remover chave da OpenAI
+          </Button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+export function PageSpeedCredentialsForm({ configured }: { configured: boolean }) {
+  const [state, formAction, isPending] = useActionState(savePageSpeedCredentialsAction, initialState);
+
+  return (
+    <div className="flex flex-col gap-3 border-b border-[var(--ff-border-subtle)] py-5">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-[var(--ff-text-primary)]">Google PageSpeed Insights</p>
+        {configured ? <Badge variant="success">Configurada</Badge> : <Badge variant="outline">Não configurada</Badge>}
+      </div>
+      <p className="text-xs text-[var(--ff-text-muted)]">
+        Usada na Auditoria de Site (desempenho, acessibilidade, boas práticas e SEO) na página da
+        empresa — API gratuita do Google (cota de 25.000 consultas/dia), sem precisar habilitar
+        faturamento. Crie uma chave em{" "}
+        <a
+          href="https://developers.google.com/speed/docs/insights/v5/get-started"
+          target="_blank"
+          rel="noreferrer"
+          className="text-[var(--ff-violet-glow)] hover:underline"
+        >
+          um projeto Google Cloud
+        </a>{" "}
+        (ative a &quot;PageSpeed Insights API&quot; e gere uma chave de API).
+      </p>
+      <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <Field
+            label="Chave de API da PageSpeed Insights"
+            name="apiKey"
+            type="password"
+            placeholder={configured ? "•••••••••••• (substituir)" : "AIza..."}
+            autoComplete="off"
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={isPending}>
+          {isPending ? "Salvando..." : "Salvar"}
+        </Button>
+      </form>
+      {state.message ? (
+        <p role="alert" className={`text-xs ${state.success ? "text-[var(--ff-success)]" : "text-[var(--ff-danger)]"}`}>
+          {state.message}
+        </p>
+      ) : null}
+      {configured ? (
+        <form action={clearPageSpeedCredentialsAction}>
+          <Button type="submit" size="sm" variant="ghost">
+            Remover chave da PageSpeed
           </Button>
         </form>
       ) : null}
