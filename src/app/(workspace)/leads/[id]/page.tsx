@@ -25,10 +25,12 @@ import { InteractionForm } from "@/components/leads/interaction-form";
 import { TaskForm } from "@/components/leads/task-form";
 import { TaskItem } from "@/components/leads/task-item";
 import { LeadScoreSection } from "@/components/ai/lead-score-section";
+import { LeadScoreDimensionsCard } from "@/components/ai/lead-score-dimensions-card";
 import { OutreachSection } from "@/components/ai/outreach-section";
 import { ProposalAssistantSection } from "@/components/ai/proposal-assistant-section";
 import { OutreachEmailComposer } from "@/components/outreach/outreach-email-composer";
 import { listLeadAnalyses } from "@/modules/ai/lead-scorer.service";
+import { getLatestLeadScoreDimensions } from "@/modules/leads/scoring/lead-score-dimensions.service";
 import {
   listOutreachEmails,
   resolveDefaultRecipientEmail,
@@ -57,6 +59,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const leadAnalyses = await listLeadAnalyses(supabase, activeOrganization.organizationId, id);
   const latestScore = (leadAnalyses.find((a) => a.analysis_type === "lead_score")?.result ??
     null) as LeadScoreResult | null;
+  const latestScoreDimensions = await getLatestLeadScoreDimensions(supabase, activeOrganization.organizationId, id);
 
   const [outreachHistory, defaultRecipientEmail, integrationStatus] = await Promise.all([
     listOutreachEmails(supabase, activeOrganization.organizationId, id),
@@ -180,6 +183,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
         <LeadScoreSection leadId={lead.id} initialScore={latestScore} />
+        <LeadScoreDimensionsCard leadId={lead.id} initialDimensions={latestScoreDimensions} />
         <OutreachSection leadId={lead.id} />
         <ProposalAssistantSection leadId={lead.id} />
         <OutreachEmailComposer

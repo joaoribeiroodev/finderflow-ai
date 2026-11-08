@@ -989,3 +989,59 @@ a invariante "pesos somam 100"). `next build`, `npm run lint` e `npx tsc
 --noEmit` limpos. Migration aplicada ao projeto real — schema confirmado
 via `information_schema.columns`; `get_advisors` (security) não reportou
 nenhum achado novo causado por esta fase.
+
+## Módulo 4 — Lead Scoring 2.0
+
+Pulei o Módulo 2 (Website Audit) de novo — continua bloqueado pela
+decisão de negócio pendente da seção 6 da auditoria (chave de API do
+Google PageSpeed / projeto GCP), que ainda não foi tomada. O Módulo 4
+não tem essa dependência externa e já tinha os sinais de que precisava
+(Módulos 1 e 3), então segui com ele.
+
+### O que foi implementado
+
+- Decompõe o placar único de 6 critérios do Lead Scorer (Fase 5) em 3
+  dimensões — **Potencial** (`service_fit` + `observable_need`),
+  **Aderência** (`icp_fit` + `data_quality`) e **Prioridade**
+  (`contact_ease` + `interest_signals`) — cada critério pertence a
+  exatamente uma dimensão (verificado por teste).
+- **Nunca uma nova chamada de IA**: a decomposição é uma reagregação
+  puramente determinística (média ponderada pelos pesos já existentes em
+  `LEAD_SCORE_CRITERIA`) dos mesmos números que o Lead Scorer já havia
+  devolvido em `score_breakdown` — zero custo adicional de IA
+  (`lead-score-dimensions.ts`, função pura, testada sem IA/banco).
+- Tabela nova `lead_scores`: histórico (nunca sobrescreve), mesmo
+  princípio de `digital_presence_scores` do Módulo 3. `leads.score`
+  (campo único existente desde a Fase 5) continua sendo atualizado
+  normalmente — é o "cache do valor atual" que a própria auditoria
+  propôs manter, nenhuma funcionalidade existente foi removida.
+- Gravação **automática** a cada qualificação bem-sucedida (dentro de
+  `scoreLead()`, best-effort — nunca invalida a qualificação em si se a
+  gravação do histórico falhar).
+- Ação manual "Calcular dimensões" para leads qualificados antes deste
+  módulo existir — relê a última `ai_analyses` do tipo `lead_score` já
+  salva e decompõe sem gastar uma nova chamada de IA.
+- UI: `LeadScoreDimensionsCard` ao lado da seção de qualificação
+  existente na página do lead, com badge colorido por dimensão (verde
+  ≥70, amarelo ≥35, vermelho abaixo).
+- Auditoria (`lead_score_dimensions.recompute`) no caminho manual.
+
+### O que esta fase explicitamente NÃO fez
+
+- Nenhuma mudança na UI/lógica de priorização de leads na listagem ou no
+  pipeline (kanban) para usar as 3 dimensões — hoje elas só aparecem no
+  detalhe do lead. Ordenar/filtrar por dimensão fica como possível
+  próximo incremento de UI, não bloqueia o módulo funcionar ponta a
+  ponta.
+- Nenhuma alteração no prompt/schema do Lead Scorer em si — os 6
+  critérios e pesos da Fase 5 continuam exatamente os mesmos; o Módulo 4
+  é só uma camada de leitura sobre o que já existe.
+
+### Testes
+
+236/236 passando (6 novos em `lead-score-dimensions.test.ts`, incluindo
+a verificação de que os 6 critérios cobrem exatamente as 3 dimensões
+sem sobreposição ou lacuna). `next build`, `npm run lint` e `npx tsc
+--noEmit` limpos. Migration aplicada ao projeto real — schema
+confirmado via `information_schema.columns`; `get_advisors` (security)
+não reportou nenhum achado novo causado por esta fase.

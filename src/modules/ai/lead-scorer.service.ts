@@ -7,6 +7,7 @@ import type { AIResult } from "@/lib/ai/provider";
 import { leadScoreSchema, type LeadScoreResult } from "@/lib/ai/schemas";
 import { logger } from "@/lib/logger/logger";
 import { getLeadDetail } from "@/modules/leads/leads.service";
+import { recordLeadScoreDimensions } from "@/modules/leads/scoring/lead-score-dimensions.service";
 import type { Database } from "@/types/database";
 
 import { buildLeadScorerInput, LEAD_SCORER_INSTRUCTIONS, PROMPT_KEYS, PROMPT_VERSIONS } from "./prompts";
@@ -74,6 +75,26 @@ export async function scoreLead(
     if (updateError) {
       logger.error("Falha ao atualizar score do lead", {
         error: updateError.message,
+        organizationId,
+        leadId,
+      });
+    }
+
+    // Módulo 4 — Lead Scoring 2.0: decompõe o mesmo resultado em 3 dimensões
+    // (nunca uma nova chamada de IA). Best-effort — nunca invalida a
+    // qualificação em si se a gravação do histórico falhar.
+    try {
+      await recordLeadScoreDimensions(
+        supabase,
+        organizationId,
+        leadId,
+        result.data.score_breakdown,
+        result.model,
+        result.promptVersion,
+      );
+    } catch (dimensionsError) {
+      logger.warn("Falha ao gravar dimensões do Lead Scoring 2.0", {
+        error: (dimensionsError as Error).message,
         organizationId,
         leadId,
       });

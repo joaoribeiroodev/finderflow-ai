@@ -1061,6 +1061,67 @@ export type Database = {
           },
         ]
       }
+      lead_scores: {
+        Row: {
+          computed_at: string
+          fit_score: number
+          id: string
+          lead_id: string
+          model: string
+          organization_id: string
+          potential_score: number
+          priority_score: number
+          prompt_version: string
+          weights: Json
+        }
+        Insert: {
+          computed_at?: string
+          fit_score: number
+          id?: string
+          lead_id: string
+          model: string
+          organization_id: string
+          potential_score: number
+          priority_score: number
+          prompt_version: string
+          weights?: Json
+        }
+        Update: {
+          computed_at?: string
+          fit_score?: number
+          id?: string
+          lead_id?: string
+          model?: string
+          organization_id?: string
+          potential_score?: number
+          priority_score?: number
+          prompt_version?: string
+          weights?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scores_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_scores_lead_same_org_fk"
+            columns: ["organization_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["organization_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_scores_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_stage_history: {
         Row: {
           changed_at: string
