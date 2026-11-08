@@ -1314,3 +1314,67 @@ build`, `npm run lint` e `npx tsc --noEmit` limpos. Migration aplicada
 ao projeto real; `get_advisors` (security) revisado — achado de `anon`
 nas 3 funções novas corrigido na mesma migration, sem achados novos
 restantes causados por esta fase.
+
+## Módulo 8 — WhatsApp Business: **decisão de corte** (não implementado)
+
+A auditoria original já apontava este módulo como o de maior incerteza
+externa (seção 6: "requer conta Meta Business verificada, número de
+telefone dedicado, e normalmente um BSP... processo de aprovação da
+Meta pode levar dias/semanas"). Sob a premissa desta fase — só
+integrações gratuitas ou alternativas open source, e cortar o que não
+couber nela — avaliei as duas únicas rotas reais e nenhuma passa o
+critério com segurança suficiente para entrar no sistema agora:
+
+1. **API oficial da Meta (WhatsApp Cloud API), uso direto sem BSP
+   pago**: tem um nível de uso gratuito (conversas iniciadas pelo
+   usuário dentro de certas categorias/janela de 24h, e um número
+   limitado de conversas iniciadas pela empresa por mês, grátis). Mas
+   **não é algo que eu possa simplesmente "ligar" no código**:
+   - exige um número de telefone dedicado (não pode ser o WhatsApp
+     pessoal de alguém) e, a partir de um certo volume, **verificação
+     de negócio pela Meta** — um processo de aprovação externo, de
+     prazo imprevisível (dias a semanas), fora do meu controle e do
+     controle do próprio usuário;
+   - contas não verificadas começam com um limite baixíssimo de
+     conversas iniciadas pela empresa por dia, pensado para teste, não
+     para campanhas reais (o próprio caso de uso do Módulo 6/7);
+   - templates de mensagem também passam por aprovação da Meta antes
+     de poderem ser usados — não é uma chave de API simples como
+     PageSpeed/Gmail/OpenAI, é um processo de homologação com SLA que a
+     Meta controla, não eu.
+   Ou seja: tecnicamente "gratuita" dentro de certos limites, mas **não
+   é uma integração que eu possa implementar e entregar funcionando
+   hoje** — o gargalo é um processo de aprovação externo e imprevisível
+   de um terceiro, não código.
+2. **Bibliotecas open source não-oficiais** (ex.: Baileys,
+   whatsapp-web.js, venom-bot — todas usam o protocolo do WhatsApp Web
+   de forma reversa, não a API oficial): são, de fato, gratuitas e
+   open source — passariam a letra da premissa desta fase. **Mas
+   violam os Termos de Serviço do WhatsApp** (automação de mensagens
+   fora da API oficial é um dos usos explicitamente proibidos) e
+   carregam um risco real e conhecido de **banimento permanente do
+   número de telefone da organização** sem aviso prévio, exatamente no
+   caso de uso que este plano pede (campanhas/cadências de prospecção
+   em volume). Implementar isso significaria colocar o número de
+   WhatsApp de cada organização cliente em risco de banimento para
+   viabilizar uma funcionalidade — um risco de negócio e reputacional
+   que não é meu para assumir silenciosamente, e que a própria regra
+   do projeto ("nunca inferir decisão de negócio sem perguntar")
+   cobre: o usuário autorizou "integrações gratuitas ou open source",
+   não "violar os termos de uso de um provedor terceiro".
+
+**Decisão**: Módulo 8 — WhatsApp Business **cortado do sistema nesta
+fase**. Nenhuma tabela, rota, credencial ou dependência de WhatsApp foi
+criada. O canal `channel` em `campaign_messages` (Módulo 6) já tinha
+`'whatsapp'` preparado no `check constraint` como possibilidade futura
+— continua lá como documentação de intenção, mas nenhum código o usa;
+só `'email'` é aceito. O WhatsApp do perfil da organização
+(`organization_profiles.whatsapp_number`, Fase 5) continua existindo
+apenas como **convite manual** nos e-mails de prospecção ("continue a
+conversa por este WhatsApp") — isso nunca dependeu de uma API de envio
+e não é afetado por este corte.
+
+Caminho realista se o usuário decidir revisitar isso no futuro: iniciar
+o processo de verificação de negócio na Meta (fora do meu controle,
+prazo incerto) e, só depois dele aprovado, eu implemento a integração
+via API oficial — nunca via biblioteca não-oficial, mesmo que gratuita.
