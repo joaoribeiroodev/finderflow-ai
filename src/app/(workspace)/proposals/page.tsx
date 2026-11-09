@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ProposalCreateForm } from "@/components/proposals/proposal-create-form";
 import { ProposalStatusBadge } from "@/components/proposals/proposal-status-badge";
 import { effectiveProposalStatus, PROPOSAL_STATUSES, type ProposalStatus } from "@/lib/validation/proposals";
-import { formatBRL, formatRelativeDateTime } from "@/lib/utils/format";
+import { formatBRL, formatCalendarDate, formatRelativeDateTime } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Propostas — FinderFlow AI" };
 
@@ -87,7 +87,7 @@ export default async function ProposalsPage({
                       </span>
                       <span className="text-xs text-[var(--ff-text-muted)]">
                         Criada {formatRelativeDateTime(proposal.created_at)}
-                        {proposal.valid_until ? ` · válida até ${proposal.valid_until}` : ""}
+                        {proposal.valid_until ? ` · válida até ${formatCalendarDate(proposal.valid_until)}` : ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">

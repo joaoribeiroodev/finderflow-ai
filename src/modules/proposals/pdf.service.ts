@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import PDFDocument from "pdfkit";
 
 import { logger } from "@/lib/logger/logger";
-import { formatBRL } from "@/lib/utils/format";
+import { formatBRL, formatCalendarDate, formatDate } from "@/lib/utils/format";
 import type { ProposalDetail } from "./proposals.service";
 import type { Database } from "@/types/database";
 
@@ -33,9 +33,12 @@ function buildProposalPdfBuffer(
     doc.moveDown(0.3);
     doc.fontSize(10).fillColor("#555").text(`${organizationName}`);
     doc.text(`Proposta ${proposal.proposal_number}`);
-    doc.text(`Emitida em ${new Date(proposal.created_at).toLocaleDateString("pt-BR")}`);
+    doc.text(`Emitida em ${formatDate(proposal.created_at)}`);
     if (proposal.valid_until) {
-      doc.text(`Válida até ${new Date(proposal.valid_until).toLocaleDateString("pt-BR")}`);
+      // valid_until é uma data-calendário pura (coluna `date`, sem hora) —
+      // ver comentário em formatCalendarDate (lib/utils/format.ts) sobre por
+      // que isso nunca deve passar por new Date()/timezone.
+      doc.text(`Válida até ${formatCalendarDate(proposal.valid_until)}`);
     }
     if (proposal.lead?.company?.name) {
       doc.text(`Para: ${proposal.lead.company.name}`);

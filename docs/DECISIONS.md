@@ -1682,3 +1682,113 @@ header — mantém a cadência de processamento rápida, continua 100%
 gratuito, e não depende do limite de cron da própria Vercel. Não
 configurei isso agora porque exige criar uma conta externa e decidir
 isso com o usuário, fora do escopo de "corrigir o deploy e publicar".
+
+## Correção: horários exibidos fora do fuso de Brasília (bug de renderização, não do banco)
+
+**Relato do usuário**: ao buscar empresas em `/prospecting`, a API do
+Minha Receita estava falhando; além disso, pelos logs, "o sistema não
+está sincronizado com o horário do Brasil", com suspeita de que fosse
+o banco de dados.
+
+**Diagnóstico — fuso horário**: o banco está correto. Todas as colunas
+de instante usam `timestamptz` e armazenam em UTC, que é a prática
+recomendada — não há nada a corrigir no Postgres/Supabase. O bug é na
+**camada de renderização**: vários Server Components chamavam
+`.toLocaleDateString("pt-BR")` / `.toLocaleString("pt-BR")` sem
+`timeZone` explícito. Isso funciona corretamente num componente
+`"use client"` (o navegador do usuário já está no fuso de Brasília),
+mas um Server Component roda dentro da função serverless da Vercel
+(região `iad1`, relógio do processo em **UTC**) — então o mesmo código
+exibia horários **3h adiantados** em produção. `formatRelativeDateTime`
+(usado em vários lugares) não tinha esse problema, porque só calcula
+uma diferença em milissegundos (`date.getTime() - Date.now()`), nunca
+um horário de parede absoluto.
+
+**Correção aplicada**: novas funções em `src/lib/utils/format.ts` —
+`formatDate` e `formatDateTime` — usam `Intl.DateTimeFormat` com
+`timeZone: "America/Sao_Paulo"` explícito, independente de onde o
+processo roda. Substituídas em todos os pontos server-side que
+formatavam datas/horas para o usuário:
+`sales-analyst.service.ts` (período dos relatórios da IA),
+`export.service.ts` (CSV de prospecção), `pdf.service.ts` (PDF de
+proposta) e `admin/page.tsx` (datas de organizações/usuários/logs).
+
+**Bug relacionado, descoberto durante a investigação (colunas de data
+pura)**: `proposals.valid_until` e `contract_charges.due_date` são
+colunas `date` do Postgres — **sem hora, sem fuso**, só um dia-calendário
+("2026-11-20"). Passar esse valor por `new Date(string)` e depois por
+qualquer conversão de fuso (inclusive a correção acima) é **errado**:
+`new Date("2026-11-20")` é interpretado como meia-noite UTC, e
+converter meia-noite UTC para um fuso negativo (Brasília, UTC-3) volta
+para o dia anterior — o usuário veria "19/11" em vez de "20/11". Por
+isso foi criada uma função separada, `formatCalendarDate`, que nunca
+usa `Date`/fuso: só rearranja os dígitos da string
+(`YYYY-MM-DD` → `DD/MM/YYYY`). Aplicada em `pdf.service.ts`,
+`charges-history.tsx` e nas páginas de propostas (`proposals/page.tsx`,
+`proposals/[id]/page.tsx`).
+
+**Bug de negócio mais sério, encontrado pela mesma causa (propostas
+expirando um dia antes da hora)**: `effectiveProposalStatus`
+(`src/lib/validation/proposals.ts`) comparava `new Date(validUntil) <
+now` — devido ao mesmo problema de meia-noite UTC, uma proposta válida
+até "2026-11-20" já aparecia como **expirada a partir das 21h de
+2026-11-19 no horário de Brasília**, quase um dia inteiro antes do
+esperado. Corrigido comparando dia-calendário de Brasília como string
+(`brazilTodayDateString(now) > validUntil`), com dois novos testes
+cobrindo exatamente a fronteira (23h UTC do dia de vencimento ainda
+"válido"; 03h UTC do dia seguinte já "expirado").
+
+**Nenhuma dessas correções precisou de qualquer mudança no banco de
+dados** — a suspeita do usuário era razoável (os sintomas realmente
+pareciam fuso/dados), mas a causa real estava inteiramente no código de
+exibição.
+
+## Correção: API do Minha Receita falhando nas buscas (429 — limite de taxa do provedor gratuito)
+
+**Causa confirmada em produção** (`get_runtime_errors`, 7 dias):
+`"Minha Receita respondeu 429 após retry."` em `/prospecting`, por
+volta de 2026-11-09 23:05–23:07 UTC. O Minha Receita
+(minhareceita.org) é um provedor público, gratuito e mantido
+voluntariamente dos dados de CNPJ da Receita Federal — documentado
+desde a integração original como **sem SLA formal**, e o próprio
+`docs.minhareceita.org` avisa que o endpoint de busca (diferente da
+consulta direta por CNPJ) está em "beta" e pode responder 429 sob uso
+compartilhado. O código anterior só tentava **uma vez mais** (1,5s de
+espera) depois do primeiro 429, o que raramente era tempo suficiente
+para o limitador liberar, e uma única busca paginada podia disparar
+até 4 requisições em sequência rápida, aumentando o risco de ela mesma
+estourar o limite.
+
+**Decisão**: não trocar o Minha Receita por um provedor pago — mantém
+a premissa do projeto de usar só integrações gratuitas — e sim tornar
+o provedor gratuito mais resiliente ao seu próprio limite de taxa.
+Mudanças em `minha-receita-provider.ts`:
+- Até 4 tentativas totais (antes: 2), com backoff exponencial a partir
+  de 1,5s; um 429 (limite de taxa — "espere mais") recebe um backoff
+  mais generoso que um 5xx (erro real do servidor).
+- 400ms de pausa entre páginas de uma mesma busca paginada, para não
+  gastar o próprio limite só seguindo o cursor rápido demais.
+- Mensagem ao usuário agora distingue as duas causas: 429 explica que
+  é o provedor público gratuito sob uso compartilhado e sugere
+  aguardar alguns minutos; qualquer outra falha (timeout, 5xx) diz que
+  o provedor está indisponível/lento e sugere tentar de novo depois.
+
+**Isto é uma mitigação, não uma garantia**: o limite de taxa é do
+Minha Receita, fora do controle deste projeto. Buscas continuarão
+falhando ocasionalmente sob uso pesado da instância pública
+compartilhada — agora com menos frequência e com uma mensagem honesta
+sobre o motivo, em vez de um erro genérico.
+
+## Achado separado (não solicitado): `SUPABASE_SERVICE_ROLE_KEY` vazia em produção
+
+Durante a investigação dos dois itens acima (`get_runtime_errors`),
+foi encontrado um terceiro problema real e ativo em produção, sem
+relação com os dois relatados: a variável de ambiente
+`SUPABASE_SERVICE_ROLE_KEY` na Vercel está configurada com valor
+**vazio**, causando erros `"SUPABASE_SERVICE_ROLE_KEY não configurada"`
+nos logs de produção em rotas que dependem do cliente admin (`/contracts`,
+notificações do `/admin`). Não foi corrigido nesta sessão — é um
+segredo, não deve ser adivinhado, gerado ou exibido em texto puro no
+chat. Precisa ser configurado pelo usuário diretamente no painel da
+Vercel (Settings → Environment Variables), com o valor correto copiado
+do painel do Supabase (Project Settings → API → `service_role` key).

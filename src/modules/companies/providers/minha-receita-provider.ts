@@ -48,6 +48,24 @@ const MAX_RESULTS_PER_SEARCH = 60;
 const PAGE_LIMIT = 50;
 const MAX_PAGES_FOLLOWED = 4;
 const REQUEST_TIMEOUT_MS = 12_000;
+/**
+ * A instância pública (minhareceita.org) é mantida voluntariamente, sem
+ * SLA, e devolve 429 sob uso compartilhado — confirmado em produção
+ * (ver docs/DECISIONS.md). Um único retry de 1.5s (comportamento
+ * anterior) não dava tempo de o limitador liberar. `MAX_RETRY_ATTEMPTS`
+ * sobe para 4 tentativas totais com backoff exponencial, e só para 429
+ * especificamente (rate limit, sinal de "espere mais") o backoff é mais
+ * generoso que para 5xx (erro real do servidor).
+ */
+const MAX_RETRY_ATTEMPTS = 4;
+const RETRY_BASE_DELAY_MS = 1_500;
+/** Pausa entre páginas de uma mesma busca paginada, para não disparar o rate limit só por seguir cursor rápido demais. */
+const INTER_PAGE_DELAY_MS = 400;
+
+function retryDelayMs(status: number, attempt: number): number {
+  const backoffAttempt = status === 429 ? attempt + 1 : attempt; // 429 espera mais que 5xx
+  return RETRY_BASE_DELAY_MS * 2 ** (backoffAttempt - 1);
+}
 
 interface MinhaReceitaSocio {
   nome_socio?: string;
@@ -82,6 +100,14 @@ interface MinhaReceitaCompany {
 interface MinhaReceitaSearchResponse {
   data: MinhaReceitaCompany[];
   cursor?: string;
+}
+
+/** Carrega o status HTTP devolvido pela Minha Receita para o chamador decidir a mensagem (429 = "espere", 5xx = "fora do ar"). */
+class MinhaReceitaUpstreamError extends Error {
+  constructor(readonly status: number) {
+    super(`Minha Receita respondeu ${status} após ${MAX_RETRY_ATTEMPTS} tentativas.`);
+    this.name = "MinhaReceitaUpstreamError";
+  }
 }
 
 /** Estado interno de paginação, codificado em base64 no `pageToken` opaco exposto ao resto do app. */
@@ -205,11 +231,11 @@ async function fetchByCnpj(baseUrl: string, cnpjDigits: string, attempt = 1): Pr
     if (response.status === 404) return null;
 
     if (response.status === 429 || response.status >= 500) {
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      if (attempt < MAX_RETRY_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response.status, attempt)));
         return fetchByCnpj(baseUrl, cnpjDigits, attempt + 1);
       }
-      throw new Error(`Minha Receita respondeu ${response.status} após retry.`);
+      throw new MinhaReceitaUpstreamError(response.status);
     }
 
     if (!response.ok) {
@@ -237,11 +263,11 @@ async function fetchPage(
     });
 
     if (response.status === 429 || response.status >= 500) {
-      if (attempt < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      if (attempt < MAX_RETRY_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response.status, attempt)));
         return fetchPage(baseUrl, params, attempt + 1);
       }
-      throw new Error(`Minha Receita respondeu ${response.status} após retry.`);
+      throw new MinhaReceitaUpstreamError(response.status);
     }
 
     if (!response.ok) {
@@ -252,6 +278,14 @@ async function fetchPage(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Mensagem para o usuário: distingue "espere, está sobrecarregado" (429) de "está fora do ar" (timeout/5xx), já que a causa real é diferente. */
+function describeUpstreamFailure(error: unknown): string {
+  if (error instanceof MinhaReceitaUpstreamError && error.status === 429) {
+    return "O Minha Receita (provedor público e gratuito de dados de CNPJ) está limitando as requisições agora por excesso de uso compartilhado. Aguarde alguns minutos e tente de novo.";
+  }
+  return "Não foi possível consultar o Minha Receita agora (provedor de dados públicos de CNPJ indisponível ou muito lento). Tente novamente em alguns minutos.";
 }
 
 export class MinhaReceitaProvider implements BusinessDataProvider {
@@ -271,9 +305,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
         provider: this.name,
         error: error instanceof Error ? error.message : "erro desconhecido",
       });
-      throw new Error(
-        "Não foi possível consultar este CNPJ agora (provedor de dados públicos de CNPJ indisponível). Tente novamente em alguns minutos.",
-      );
+      throw new Error(describeUpstreamFailure(error));
     }
 
     return company ? mapToResultItem(company) : null;
@@ -308,9 +340,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
           provider: this.name,
           error: error instanceof Error ? error.message : "erro desconhecido",
         });
-        throw new Error(
-          "Não foi possível buscar empresas agora (provedor de dados públicos de CNPJ indisponível). Tente novamente em alguns minutos.",
-        );
+        throw new Error(describeUpstreamFailure(error));
       }
 
       pagesFollowed += 1;
@@ -323,6 +353,13 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
       }
 
       if (!cursor) break; // última página do provedor
+
+      // Dá um respiro ao limitador da instância pública antes de seguir
+      // o cursor para a próxima página — sem isso, uma busca com várias
+      // páginas já começa gastando o próprio limite de taxa sozinha.
+      if (collected.length < MAX_RESULTS_PER_SEARCH && pagesFollowed < MAX_PAGES_FOLLOWED) {
+        await new Promise((resolve) => setTimeout(resolve, INTER_PAGE_DELAY_MS));
+      }
     }
 
     const hasMore = Boolean(cursor) && collected.length >= MAX_RESULTS_PER_SEARCH;

@@ -23,7 +23,7 @@ import {
 } from "@/modules/outreach-email/outreach-email.service";
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { effectiveProposalStatus, type ProposalStatus } from "@/lib/validation/proposals";
-import { formatBRL, formatRelativeDateTime } from "@/lib/utils/format";
+import { formatBRL, formatCalendarDate, formatRelativeDateTime } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Proposta — FinderFlow AI" };
 
@@ -66,7 +66,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
       <PageHeader
         eyebrow="Proposta"
         title={proposal.proposal_number}
-        subtitle={`Criada ${formatRelativeDateTime(proposal.created_at)}${proposal.valid_until ? ` · válida até ${proposal.valid_until}` : ""}.`}
+        subtitle={`Criada ${formatRelativeDateTime(proposal.created_at)}${proposal.valid_until ? ` · válida até ${formatCalendarDate(proposal.valid_until)}` : ""}.`}
         actions={
           <>
             <ProposalStatusBadge status={effective} />

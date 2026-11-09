@@ -57,6 +57,27 @@ describe("effectiveProposalStatus", () => {
     const now = new Date("2026-11-04T00:00:00Z");
     expect(effectiveProposalStatus("sent", null, now)).toBe("sent");
   });
+
+  it("não expira um dia antes por causa do fuso (bug corrigido: comparação deve ser por dia-calendário de Brasília, não por instante UTC)", () => {
+    // 2026-11-04T23:00:00Z é 2026-11-04T20:00:00-03:00 — ainda é "hoje" em
+    // Brasília. Uma proposta válida até "2026-11-04" não pode já estar
+    // expirada neste instante; a comparação antiga (`new Date(validUntil) <
+    // now`) marcava como expirada quase um dia inteiro antes do esperado.
+    const now = new Date("2026-11-04T23:00:00Z");
+    expect(effectiveProposalStatus("sent", "2026-11-04", now)).toBe("sent");
+  });
+
+  it("expira a partir do dia seguinte ao valid_until em Brasília", () => {
+    // 2026-11-05T02:00:00Z é 2026-11-04T23:00:00-03:00 — ainda Nov 4 em
+    // Brasília, então uma proposta válida até "2026-11-04" ainda não expirou.
+    const stillSameDay = new Date("2026-11-05T02:00:00Z");
+    expect(effectiveProposalStatus("sent", "2026-11-04", stillSameDay)).toBe("sent");
+
+    // 2026-11-05T03:00:00Z é 2026-11-05T00:00:00-03:00 — já é Nov 5 em
+    // Brasília, então agora sim expirou.
+    const nextDay = new Date("2026-11-05T03:00:00Z");
+    expect(effectiveProposalStatus("sent", "2026-11-04", nextDay)).toBe("expired");
+  });
 });
 
 describe("proposalItemSchema", () => {

@@ -39,6 +39,7 @@ describe("MinhaReceitaProvider", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("lança BusinessSearchQueryTooBroadError sem CNAE, UF ou cursor", async () => {
@@ -119,14 +120,28 @@ describe("MinhaReceitaProvider", () => {
     expect(page.items[0].category).toBe("Restaurantes e similares");
   });
 
-  it("repete uma vez em 429 e lança erro claro se persistir", async () => {
+  it("tenta 4 vezes com backoff em 429 e lança mensagem de limitação se persistir", async () => {
+    vi.useFakeTimers();
     fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
 
     const provider = new MinhaReceitaProvider("https://minhareceita.example");
-    await expect(provider.search({ query: "x", state: "BA" })).rejects.toThrow(
-      /Não foi possível buscar empresas/,
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const result = provider.search({ query: "x", state: "BA" });
+    const assertion = expect(result).rejects.toThrow(/limitando as requisições/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("tenta 4 vezes com backoff em 5xx e lança mensagem de indisponibilidade se persistir", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const result = provider.search({ query: "x", state: "BA" });
+    const assertion = expect(result).rejects.toThrow(/indisponível ou muito lento/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("getByCnpj: consulta GET /<cnpj> (só dígitos) e mapeia o resultado", async () => {
@@ -148,21 +163,28 @@ describe("MinhaReceitaProvider", () => {
     expect(item).toBeNull();
   });
 
-  it("getByCnpj: repete uma vez em 429 e lança erro claro se persistir", async () => {
+  it("getByCnpj: tenta 4 vezes com backoff em 429 e lança mensagem de limitação se persistir", async () => {
+    vi.useFakeTimers();
     fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
 
     const provider = new MinhaReceitaProvider("https://minhareceita.example");
-    await expect(provider.getByCnpj("11222333000181")).rejects.toThrow(/Não foi possível consultar este CNPJ/);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const result = provider.getByCnpj("11222333000181");
+    const assertion = expect(result).rejects.toThrow(/limitando as requisições/);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("segue o cursor devolvido e para quando não há mais páginas", async () => {
+  it("segue o cursor devolvido, aguarda entre páginas e para quando não há mais páginas", async () => {
+    vi.useFakeTimers();
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: [SAMPLE_COMPANY], cursor: "42" }))
       .mockResolvedValueOnce(jsonResponse({ data: [] }));
 
     const provider = new MinhaReceitaProvider("https://minhareceita.example");
-    const page = await provider.search({ query: "x", state: "BA" });
+    const result = provider.search({ query: "x", state: "BA" });
+    await vi.runAllTimersAsync();
+    const page = await result;
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[1][0])).toContain("cursor=42");

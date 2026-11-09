@@ -6,6 +6,7 @@ import { runStructuredAI } from "@/lib/ai/engine";
 import type { AIResult } from "@/lib/ai/provider";
 import { salesInsightsSchema, type SalesInsights } from "@/lib/ai/schemas";
 import { logger } from "@/lib/logger/logger";
+import { formatDate } from "@/lib/utils/format";
 import type { Database } from "@/types/database";
 
 import {
@@ -24,11 +25,15 @@ export function resolvePeriod(preset: PeriodPreset, now: Date = new Date()): { s
   const end = now;
   if (preset === "current_month") {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    return { start, end, label: `${start.toLocaleDateString("pt-BR")} até ${end.toLocaleDateString("pt-BR")} (mês atual)` };
+    return { start, end, label: `${formatDate(start.toISOString())} até ${formatDate(end.toISOString())} (mês atual)` };
   }
   const days = preset === "last_90_days" ? 90 : 30;
   const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  return { start, end, label: `últimos ${days} dias (${start.toLocaleDateString("pt-BR")} a ${end.toLocaleDateString("pt-BR")})` };
+  return {
+    start,
+    end,
+    label: `últimos ${days} dias (${formatDate(start.toISOString())} a ${formatDate(end.toISOString())})`,
+  };
 }
 
 /**

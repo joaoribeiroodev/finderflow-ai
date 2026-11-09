@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { refreshChargeStatusAction } from "@/modules/contracts/actions";
 import type { ContractChargeView } from "@/modules/contracts/contracts.service";
+import { formatCalendarDate } from "@/lib/utils/format";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "outline"> = {
   PENDING: "warning",
@@ -39,7 +40,7 @@ function ChargeRow({ charge }: { charge: ContractChargeView }) {
         </div>
         <p className="text-xs text-[var(--ff-text-muted)]">
           R$ {charge.value.toFixed(2)}
-          {charge.dueDate ? ` · vence em ${new Date(charge.dueDate).toLocaleDateString("pt-BR")}` : ""}
+          {charge.dueDate ? ` · vence em ${formatCalendarDate(charge.dueDate)}` : ""}
           {charge.description ? ` · ${charge.description}` : ""}
         </p>
       </div>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { UserAdminActions } from "@/components/admin/user-admin-actions";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import {
   approveOrganizationFormAction,
@@ -39,7 +40,7 @@ function OrganizationRow({ org }: { org: OrganizationReviewRow }) {
           {statusBadge(org.approvalStatus)}
         </div>
         <p className="text-xs text-[var(--ff-text-muted)]">
-          /{org.slug} · criada em {new Date(org.createdAt).toLocaleDateString("pt-BR")}
+          /{org.slug} · criada em {formatDate(org.createdAt)}
         </p>
         <p className="text-xs text-[var(--ff-text-muted)]">
           Dono: {org.ownerName ?? "—"}
@@ -119,7 +120,7 @@ function UserRow({ user, currentUserId }: { user: AdminUserRow; currentUserId: s
       </div>
       <p className="text-xs text-[var(--ff-text-muted)]">
         {user.email ?? "e-mail indisponível"} · desde{" "}
-        {new Date(user.createdAt).toLocaleDateString("pt-BR")}
+        {formatDate(user.createdAt)}
       </p>
       {user.memberships.length > 0 ? (
         <p className="text-xs text-[var(--ff-text-muted)]">
@@ -188,7 +189,7 @@ function LogsSection({
                   <p className="text-sm text-[var(--ff-text-primary)]">{log.message}</p>
                 </div>
                 <p className="text-xs text-[var(--ff-text-muted)]">
-                  {new Date(log.createdAt).toLocaleString("pt-BR")}
+                  {formatDateTime(log.createdAt)}
                 </p>
                 {log.context && Object.keys(log.context as object).length > 0 ? (
                   <pre className="overflow-x-auto rounded-[var(--ff-radius-sm)] bg-[var(--ff-bg-canvas)] p-2 text-[11px] text-[var(--ff-text-muted)]">
@@ -221,7 +222,7 @@ function LogsSection({
                     {attempt.succeeded ? "Sucesso" : "Falha"}
                   </Badge>
                   <span className="text-xs text-[var(--ff-text-muted)]">
-                    {new Date(attempt.createdAt).toLocaleString("pt-BR")}
+                    {formatDateTime(attempt.createdAt)}
                   </span>
                 </span>
               </li>

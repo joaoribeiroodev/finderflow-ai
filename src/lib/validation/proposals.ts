@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { brazilTodayDateString } from "@/lib/utils/format";
+
 export const PROPOSAL_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"] as const;
 export type ProposalStatus = (typeof PROPOSAL_STATUSES)[number];
 
@@ -31,13 +33,22 @@ export function isAllowedProposalTransition(from: ProposalStatus, to: ProposalSt
  * Esta função é a definição única usada tanto na UI de detalhe quanto nos
  * relatórios, para a mesma proposta nunca aparecer como "enviada" num
  * lugar e "expirada" em outro.
+ *
+ * `valid_until` é uma data-calendário pura (coluna `date`, ex.:
+ * "2026-11-10", sem hora/timezone). Comparar com `new Date(validUntil) <
+ * now` (correção anterior) comparava contra meia-noite UTC daquele dia —
+ * em horário de Brasília (UTC-3) isso expirava a proposta às 21h do dia
+ * ANTERIOR ao que o usuário escolheu, quase um dia inteiro antes do
+ * esperado. A comparação correta é por string "YYYY-MM-DD" contra o dia
+ * de hoje em Brasília: a proposta continua válida durante todo o dia
+ * `valid_until` (fuso de Brasília), expirando só a partir do dia seguinte.
  */
 export function effectiveProposalStatus(
   status: ProposalStatus,
   validUntil: string | null,
   now: Date = new Date(),
 ): ProposalStatus {
-  if (status === "sent" && validUntil && new Date(validUntil) < now) return "expired";
+  if (status === "sent" && validUntil && brazilTodayDateString(now) > validUntil) return "expired";
   return status;
 }
 

@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { logger } from "@/lib/logger/logger";
+import { formatDateTime } from "@/lib/utils/format";
 import type { Database } from "@/types/database";
 
 type Supabase = SupabaseClient<Database>;
@@ -68,7 +69,7 @@ export function buildRow(resultRow: {
     temSiteIdentificado: temSite,
     jaCadastrada: resultRow.company_id ? "Sim" : "Não",
     fonte: typeof attribution.via === "string" ? attribution.via : typeof attribution.source === "string" ? attribution.source : "",
-    dataColeta: new Date(resultRow.fetched_at).toLocaleString("pt-BR"),
+    dataColeta: formatDateTime(resultRow.fetched_at),
   };
 }
 
