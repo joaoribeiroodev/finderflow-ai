@@ -1779,16 +1779,143 @@ falhando ocasionalmente sob uso pesado da instância pública
 compartilhada — agora com menos frequência e com uma mensagem honesta
 sobre o motivo, em vez de um erro genérico.
 
-## Achado separado (não solicitado): `SUPABASE_SERVICE_ROLE_KEY` vazia em produção
+## Correção de um diagnóstico errado: `SUPABASE_SERVICE_ROLE_KEY` NÃO estava vazia
 
-Durante a investigação dos dois itens acima (`get_runtime_errors`),
-foi encontrado um terceiro problema real e ativo em produção, sem
-relação com os dois relatados: a variável de ambiente
-`SUPABASE_SERVICE_ROLE_KEY` na Vercel está configurada com valor
-**vazio**, causando erros `"SUPABASE_SERVICE_ROLE_KEY não configurada"`
-nos logs de produção em rotas que dependem do cliente admin (`/contracts`,
-notificações do `/admin`). Não foi corrigido nesta sessão — é um
-segredo, não deve ser adivinhado, gerado ou exibido em texto puro no
-chat. Precisa ser configurado pelo usuário diretamente no painel da
-Vercel (Settings → Environment Variables), com o valor correto copiado
-do painel do Supabase (Project Settings → API → `service_role` key).
+Nesta mesma data foi registrado aqui (e dito ao usuário) que a variável
+`SUPABASE_SERVICE_ROLE_KEY` estava **vazia** na Vercel. **Estava
+errado.** A variável é do tipo `sensitive`, e a API da Vercel sempre
+devolve `""` como valor de variáveis sensíveis — o valor vazio era a
+máscara, não o conteúdo. A leitura correta dos fatos:
+
+- os dois erros `SUPABASE_SERVICE_ROLE_KEY não configurada` nos logs são
+  de 2026-11-06 13:10 UTC e 2026-11-07 02:23 UTC;
+- a variável foi criada em 2026-11-07 02:29 UTC, minutos depois do
+  último erro, e nenhum erro igual apareceu desde então;
+- em 2026-11-09 23:03–23:07 UTC o servidor de produção gravou linhas em
+  `auth_login_attempts`, `rate_limit_counters` e `system_error_logs` —
+  três tabelas que só o cliente admin (service role) consegue escrever.
+
+Ou seja: a chave estava configurada e funcionando. Lição registrada:
+**valor mascarado de variável sensível não é evidência de ausência** —
+a evidência válida é o efeito (uma escrita que só a service role faz).
+
+## Evolução 2026-11-09 — auditoria geral e melhorias
+
+Pedido do usuário: analisar o projeto e evoluí-lo ao máximo, só com
+integrações gratuitas/open source. A auditoria cruzou os advisors do
+Supabase, os erros de runtime da Vercel (7 dias), as variáveis de
+ambiente de produção e o estado real das tabelas.
+
+### 1. A fila assíncrona nunca rodou em produção — agendador movido para o banco
+
+**Achado**: `CRON_SECRET` não existe nas variáveis de ambiente da
+Vercel. O worker (`/api/v1/jobs/worker`) recusa qualquer chamada sem
+esse segredo, e a Vercel só envia o header de autenticação do cron
+quando a variável existe. Resultado: toda chamada do cron respondia 401
+e a tabela `jobs` de produção tinha uma única linha, de um teste manual
+da Fase 10 — nenhum job jamais foi concluído. Envio de campanha em
+lote, cadências e enriquecimento em segundo plano dependiam disso. (A
+correção anterior do cron para 1x/dia destravou os deploys, mas não
+fazia a fila andar.)
+
+**Decisão**: o agendamento saiu do `vercel.json` e foi para o próprio
+Supabase, com `pg_cron` + `pg_net` (open source, incluídos no plano
+gratuito) — migration `20261109233500_jobs_worker_pg_cron.sql`:
+
+- o banco gera um token aleatório de 256 bits e o guarda no Vault;
+- a cada 5 minutos, `invoke_jobs_worker()` faz um GET no worker com
+  esse token no header;
+- o worker devolve o token ao banco (`verify_jobs_worker_token`, só
+  executável pela service role) para conferir.
+
+Nenhum segredo precisa ser copiado para painel nenhum, não há conta
+externa nova, e a cadência volta a ser de 5 minutos (o limite de 1x/dia
+era do cron da Vercel, não do banco). `CRON_SECRET` continua aceita
+pelo worker, se um dia for configurada, para disparo manual.
+
+A URL do worker é configurada por ambiente com
+`select public.configure_jobs_worker('https://.../api/v1/jobs/worker')`;
+sem ela o agendamento existe mas não chama nada.
+
+**Para desligar**: `select cron.unschedule('finderflow-jobs-worker');`
+ou `select public.configure_jobs_worker(null);`.
+
+Para o problema não voltar a passar despercebido, o painel `/admin`
+ganhou a aba **Fila**: contagem por status, última conclusão, as 30
+tarefas mais recentes com o erro de cada uma, e um alerta quando há
+tarefa pronta esperando há mais de 20 minutos.
+
+### 2. Busca de empresas: cache, resultado parcial e mensagens que chegam ao usuário
+
+- **A mensagem honesta sobre o 429 nunca chegava à tela.** O provedor
+  montava o texto ("está limitando as requisições…"), mas a action
+  trocava qualquer erro por "Não foi possível buscar empresas agora".
+  Agora o provedor lança `BusinessProviderUnavailableError` e a action
+  repassa a mensagem.
+- **Cache de respostas** (`CachedBusinessDataProvider` + tabela
+  `provider_response_cache`): a mesma consulta (mesmo CNAE/UF/cidade)
+  dentro de 24h não vai de novo ao Minha Receita — de qualquer
+  organização, já que é dado público da Receita, não dado de tenant.
+  Consulta por CNPJ: 7 dias. Se o provedor falhar e houver uma resposta
+  de até 30 dias, ela é devolvida com um aviso na tela dizendo de quando
+  é. `fetched_at` de cada resultado continua sendo o instante real da
+  coleta. O cache é melhor esforço: sem a tabela ou sem service role, a
+  busca funciona como antes.
+- **Resultado parcial**: se a 2ª/3ª página falhar depois de a 1ª já ter
+  trazido empresas, a busca devolve o que tem (com aviso) em vez de
+  descartar tudo. Página parcial não entra no cache.
+- Um segundo provedor de CNPJ como fallback (BrasilAPI) foi avaliado e
+  **não** implementado: não foi possível confirmar daqui o formato da
+  resposta nem se ele é independente do Minha Receita, e integrar sem
+  verificar contraria a regra do projeto.
+
+### 3. Triagem na prospecção
+
+O produto existe para achar empresas sem site, mas a tela exigia um
+clique em "Verificar site" por resultado (até 60), outro para cadastrar
+a empresa e uma segunda tela para virar lead. Agora:
+
+- **Verificar site de todos**: verifica os resultados pendentes em
+  lotes de 4, com progresso e botão de parar. Só aparece com o
+  verificador por domínio (padrão, sem cota); com a Brave Search
+  configurada cada verificação gasta cota, então lá segue manual.
+- **Filtros** Todos / Sem site / Com site / Não verificados, com
+  contagem.
+- **Adicionar como lead** em um clique (cadastra a empresa e cria o
+  lead na primeira etapa); "Só cadastrar empresa" continua disponível.
+- O site encontrado pela verificação passa a ser gravado no cadastro da
+  empresa (antes era descartado na conversão).
+
+### 4. Copilot: uma ferramenta por turno
+
+Erro real em produção: o modelo devolveu duas chamadas de ferramenta no
+mesmo turno e a conversa foi abortada. A instrução em texto pedia uma
+por vez; agora a chamada à API também envia `parallel_tool_calls:
+false`.
+
+### 5. `NO_ACTIVE_ORGANIZATION` como erro 500
+
+Quem acabava de se cadastrar via `/dashboard` lançar erro: o layout
+redireciona para `/onboarding`, mas layout e página renderizam em
+paralelo e a página lançava antes. As páginas passam a usar
+`requireActiveOrganizationForPage()`, que redireciona.
+
+### 6. Banco (advisors do Supabase) — migration `20261109233000_evolucao_perf_security_hardening.sql`
+
+- `check_rate_limit` (SECURITY DEFINER) era executável por `anon`:
+  qualquer visitante podia incrementar o contador de login de outra
+  pessoa e bloqueá-la temporariamente. Execução restrita à service role.
+- 47 índices para chaves estrangeiras sem cobertura.
+- 4 pares de políticas RLS permissivas duplicadas fundidos em uma
+  política cada (mesma regra, uma avaliação a menos por linha).
+
+**Não feito, depende do usuário**: "Leaked password protection" do
+Supabase Auth está desligada (liga-se no painel, em Authentication).
+
+### Estado em produção
+
+O código foi escrito para funcionar com ou sem as duas migrations acima
+(sem elas: a busca não usa cache e o worker segue recusando chamadas,
+como já fazia). As migrations e a ativação do agendador em produção
+(`configure_jobs_worker`) dependem de autorização explícita do usuário
+— não foram aplicadas automaticamente.

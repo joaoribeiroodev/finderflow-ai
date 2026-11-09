@@ -94,10 +94,23 @@ Se uma chave estiver ausente, o módulo correspondente permanece desabilitado
 em `src/lib/env/env.server.ts`) em vez de quebrar o build — a interface do
 provider existe, mas a chamada real só ocorre quando configurada.
 
-`POST /api/v1/jobs/billing-sync` (protegido por `Authorization: Bearer
-$CRON_SECRET`) reconcilia assinaturas periodicamente (ver docs/DECISIONS.md,
-Fase 6) — **não há agendador configurado neste ambiente**; em produção,
-chame-o periodicamente via Vercel Cron, GitHub Actions ou similar.
+## Fila assíncrona (jobs)
+
+`GET /api/v1/jobs/worker` drena a tabela `jobs` (envio de campanhas,
+cadências, enriquecimento). Quem chama é o `pg_cron` do Supabase, a cada 5
+minutos — ver `supabase/migrations/20261109233500_jobs_worker_pg_cron.sql`.
+Depois de aplicar as migrations em um ambiente novo, aponte o agendador
+para a URL pública do app (uma vez):
+
+```sql
+select public.configure_jobs_worker('https://SEU-DOMINIO/api/v1/jobs/worker');
+```
+
+O token de autenticação é gerado e guardado pelo próprio banco (Vault); o
+worker precisa de `SUPABASE_SERVICE_ROLE_KEY` para conferi-lo.
+`CRON_SECRET` é opcional e serve só para disparo manual
+(`Authorization: Bearer $CRON_SECRET`). O estado da fila aparece na aba
+**Fila** de `/admin`.
 
 ## Testes de isolamento cross-tenant (RLS)
 
@@ -153,6 +166,7 @@ tests/integration/  testes de integração (RLS)
 - ✅ Módulo 7 — Cadências e Follow-up: `cadences`/`cadence_steps`/`cadence_enrollments`/`cadence_step_sends` (novas tabelas). Diferente do Módulo 6: aqui o conteúdo de cada etapa é escrito **uma vez, por um humano**, ao montar a cadência — nunca gerado por IA — então o envio automático de cada etapa (via job periódico da Fase 10, a cada 15 minutos) é um "drip" clássico de CRM, sem IA em tempo de envio. Inscrição de um lead é sempre manual (card na página do lead), com pausar/retomar e "Marcar como respondeu" (parada manual explícita). Para de enviar automaticamente se o lead ganhar/perder ou o contato for suprimido; pula (sem parar) uma etapa se faltar e-mail do lead. Reaproveita supressão e texto de descadastro por organização do Módulo 6, sem reimplementar nada. Detalhes em `docs/DECISIONS.md`.
 - ✅ Módulo 9 — Agente de Vendas IA: investigação mostrou que o Copilot conversacional (Fase 5) já é um agente de tool-calling com allowlist fixa e confirmação humana obrigatória antes de qualquer ação mutante — exatamente o que este módulo pedia. Em vez de duplicar essa infraestrutura, estendi a allowlist com 3 leituras novas (`get_digital_presence_score`, `get_website_audit`, `list_active_cadences`) e 1 ação nova (`enroll_lead_in_cadence`, mutante, com confirmação), dando ao mesmo agente acesso aos sinais e à ação dos Módulos 2/3/7. Prompt versionado (`v1` → `v2`). Nenhuma automação proativa — o agente só age quando o usuário pede. Detalhes em `docs/DECISIONS.md`.
 - ✅ Módulo 10 — Inteligência de Conversão: conversão/taxa de ganho do pipeline já existia desde a Fase 7 (`/reports`) — este módulo acrescenta as duas peças que faltavam: desempenho de campanhas (empresas contatadas/responderam/taxa de resposta) e resultados de cadências (ativas/pausadas/paradas/concluídas, motivos de parada, envios por etapa), no mesmo seletor de período já existente. "Taxa de resposta" é um proxy honesto — o sistema não rastreia abertura/clique de e-mail (sem provedor com webhook de tracking); só conta como "respondeu" quando um humano confirma manualmente, e isso é dito no subtítulo da própria UI. Detalhes em `docs/DECISIONS.md`.
+- ✅ Evolução 2026-11-09 — auditoria geral (advisors do Supabase + erros de produção): agendador da fila movido para `pg_cron`/`pg_net` no próprio Supabase, a cada 5 minutos, com token gerado e conferido pelo banco (a fila nunca tinha rodado em produção — `CRON_SECRET` não existia na Vercel); aba **Fila** no `/admin`; cache de respostas do provedor de CNPJ com "último resultado conhecido" quando ele cai; resultado parcial em vez de erro quando uma página seguinte falha; triagem na prospecção (verificar site de todos, filtros por presença digital, "Adicionar como lead" em um clique); Copilot com uma ferramenta por turno; 47 índices de chave estrangeira, políticas RLS duplicadas fundidas e `check_rate_limit` fechado para anônimos. Ver `docs/DECISIONS.md`.
 - ❌ Módulo 8 — WhatsApp Business: **cortado do sistema**, não implementado. Sob a premissa "só integrações gratuitas/open source", nenhuma das duas rotas reais passa com segurança: a API oficial da Meta tem nível gratuito mas depende de verificação de negócio pela Meta (processo externo, prazo imprevisível, fora de controle); as bibliotecas open source não-oficiais (Baileys, whatsapp-web.js) são gratuitas mas violam os Termos de Serviço do WhatsApp e arriscam banimento permanente do número da organização — risco de negócio que não é inferido silenciosamente. Nenhuma tabela/rota/credencial de WhatsApp foi criada; o convite manual por WhatsApp nos e-mails de prospecção (Fase 5) continua existindo e não é afetado. Decisão completa em `docs/DECISIONS.md`.
 
 ## Segurança — regras que todo PR deve respeitar

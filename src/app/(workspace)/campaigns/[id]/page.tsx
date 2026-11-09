@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getCampaignById, listCampaignCompanies } from "@/modules/campaigns/campaigns.service";
 import { getCampaignMessage } from "@/modules/campaigns/campaign-messages.service";
 import { listCompanies } from "@/modules/companies/companies.service";
@@ -30,7 +30,7 @@ export default async function CampaignDetailPage({
 }) {
   const { id } = await params;
   const { q } = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const campaign = await getCampaignById(supabase, activeOrganization.organizationId, id);

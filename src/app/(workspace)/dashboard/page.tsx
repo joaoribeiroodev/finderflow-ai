@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Building2, CheckSquare, FileText, Rows3, History } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getDashboardData, getSegmentsAndOrigins, getTrendData } from "@/modules/dashboard/dashboard.service";
 import { SalesInsightsSection } from "@/components/ai/sales-insights-section";
 import { PageHeader } from "@/components/layout/page-header";
@@ -14,7 +14,7 @@ import { formatBRL, formatRelativeDateTime } from "@/lib/utils/format";
 export const metadata: Metadata = { title: "Visão geral — FinderFlow AI" };
 
 export default async function DashboardPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
   const [data, trend, breakdown] = await Promise.all([
     getDashboardData(supabase, activeOrganization.organizationId),

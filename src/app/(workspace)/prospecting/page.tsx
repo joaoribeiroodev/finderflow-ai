@@ -6,11 +6,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CnpjSearchForm, ProspectingSearchForm } from "@/components/prospecting/search-form";
+import { isBulkPresenceCheckAllowed } from "@/modules/companies/presence/get-web-presence-checker";
 import { SearchHistoryPanel } from "@/components/prospecting/search-history";
 
 export const metadata: Metadata = { title: "Prospecção — FinderFlow AI" };
 
 export default function ProspectingPage() {
+  const bulkPresenceCheck = isBulkPresenceCheckAllowed();
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -34,7 +37,7 @@ export default function ProspectingPage() {
       />
 
       <Card>
-        <ProspectingSearchForm />
+        <ProspectingSearchForm bulkPresenceCheck={bulkPresenceCheck} />
       </Card>
 
       <Card>
@@ -42,7 +45,7 @@ export default function ProspectingPage() {
       </Card>
 
       <Card>
-        <SearchHistoryPanel />
+        <SearchHistoryPanel bulkPresenceCheck={bulkPresenceCheck} />
       </Card>
     </div>
   );

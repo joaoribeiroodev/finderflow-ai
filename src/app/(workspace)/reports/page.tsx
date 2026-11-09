@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getReportsData, resolveReportPeriod, type ConversionBreakdown } from "@/modules/reports/reports.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -54,7 +54,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const period = resolveReportPeriod(from, to);

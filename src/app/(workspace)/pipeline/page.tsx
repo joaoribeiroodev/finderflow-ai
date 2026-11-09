@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { KanbanSquare } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listPipelineStages } from "@/modules/pipeline/pipeline.service";
 import { listLeadsForKanban } from "@/modules/leads/leads.service";
 import { PageHeader } from "@/components/layout/page-header";
@@ -20,7 +20,7 @@ export default async function PipelinePage({
   searchParams: Promise<{ stageError?: string }>;
 }) {
   const { stageError } = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [stages, leads] = await Promise.all([

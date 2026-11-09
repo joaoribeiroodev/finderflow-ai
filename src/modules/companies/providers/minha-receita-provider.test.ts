@@ -144,6 +144,22 @@ describe("MinhaReceitaProvider", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("devolve resultado parcial quando uma página seguinte falha depois de já ter empresas", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: [SAMPLE_COMPANY], cursor: "42" }))
+      .mockResolvedValue(new Response(null, { status: 429 }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const result = provider.search({ query: "x", state: "BA" });
+    await vi.runAllTimersAsync();
+    const page = await result;
+
+    expect(page.items).toHaveLength(1);
+    expect(page.partial).toBe(true);
+    expect(page.nextPageToken).toBeUndefined();
+  });
+
   it("getByCnpj: consulta GET /<cnpj> (só dígitos) e mapeia o resultado", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(SAMPLE_COMPANY));
 

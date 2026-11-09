@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Wrench } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listServices } from "@/modules/services/services.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { ServiceRow } from "@/components/services/service-row";
 export const metadata: Metadata = { title: "Serviços — FinderFlow AI" };
 
 export default async function ServicesPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const services = await listServices(supabase, activeOrganization.organizationId);

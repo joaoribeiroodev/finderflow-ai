@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Rows3 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listLeads } from "@/modules/leads/leads.service";
 import { listPipelineStages } from "@/modules/pipeline/pipeline.service";
 import { PageHeader } from "@/components/layout/page-header";
@@ -22,7 +22,7 @@ export default async function LeadsPage({
   searchParams: Promise<{ q?: string; stageId?: string; priority?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const page = Number(params.page ?? "1") || 1;

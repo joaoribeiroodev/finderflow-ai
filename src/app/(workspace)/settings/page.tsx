@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Building2, Download, Shield, ShieldOff, Users, Plug, Lock, IdCard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { getOrganizationProfile } from "@/modules/organizations/profile.service";
 import { listSuppressionEntries } from "@/modules/suppression/suppression.service";
@@ -24,7 +24,7 @@ import { SuppressionList } from "@/components/settings/suppression-list";
 export const metadata: Metadata = { title: "Configurações — FinderFlow AI" };
 
 export default async function SettingsPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [{ data: organization, error: orgError }, { data: members, error: membersError }] =

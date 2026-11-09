@@ -3,6 +3,7 @@ import "server-only";
 import { logger } from "@/lib/logger/logger";
 
 import {
+  BusinessProviderUnavailableError,
   BusinessSearchQueryTooBroadError,
   type BusinessDataProvider,
   type BusinessSearchPage,
@@ -305,7 +306,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
         provider: this.name,
         error: error instanceof Error ? error.message : "erro desconhecido",
       });
-      throw new Error(describeUpstreamFailure(error));
+      throw new BusinessProviderUnavailableError(describeUpstreamFailure(error));
     }
 
     return company ? mapToResultItem(company) : null;
@@ -324,6 +325,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
     const collected: BusinessSearchResultItem[] = [];
     let cursor = state.upstreamCursor;
     let pagesFollowed = 0;
+    let partial = false;
 
     while (collected.length < MAX_RESULTS_PER_SEARCH && pagesFollowed < MAX_PAGES_FOLLOWED) {
       const params = new URLSearchParams();
@@ -339,8 +341,16 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
         logger.error("Falha ao consultar o Minha Receita", {
           provider: this.name,
           error: error instanceof Error ? error.message : "erro desconhecido",
+          pagesFollowed,
         });
-        throw new Error(describeUpstreamFailure(error));
+        // Uma página seguinte falhou, mas as anteriores já trouxeram
+        // empresas: devolve o que há (marcado como parcial) em vez de
+        // jogar fora uma busca que já deu resultado.
+        if (collected.length > 0) {
+          partial = true;
+          break;
+        }
+        throw new BusinessProviderUnavailableError(describeUpstreamFailure(error));
       }
 
       pagesFollowed += 1;
@@ -367,6 +377,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
     return {
       items: collected,
       nextPageToken: hasMore ? encodePageToken({ upstreamCursor: cursor, cityFilter }) : undefined,
+      partial: partial || undefined,
     };
   }
 }

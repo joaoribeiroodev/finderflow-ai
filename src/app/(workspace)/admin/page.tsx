@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 import { UserAdminActions } from "@/components/admin/user-admin-actions";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateTime } from "@/lib/utils/format";
+import { formatDate, formatDateTime, formatRelativeDateTime } from "@/lib/utils/format";
 import { isCurrentUserSuperAdmin } from "@/modules/organizations/organizations.service";
 import {
   approveOrganizationFormAction,
+  getQueueHealth,
   listAllUsersForAdmin,
   listOrganizationsForReview,
   listRecentLoginAttempts,
@@ -20,6 +21,7 @@ import {
   type AdminUserRow,
   type LoginAttemptRow,
   type OrganizationReviewRow,
+  type QueueHealth,
   type SystemLogRow,
 } from "@/modules/admin/actions";
 
@@ -234,6 +236,100 @@ function LogsSection({
   );
 }
 
+const JOB_STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "danger" | "outline" }> = {
+  queued: { label: "Na fila", variant: "outline" },
+  processing: { label: "Processando", variant: "warning" },
+  succeeded: { label: "Concluído", variant: "success" },
+  dead_letter: { label: "Falhou (esgotou tentativas)", variant: "danger" },
+};
+
+function QueueSection({ queue }: { queue: QueueHealth }) {
+  if (!queue.available) {
+    return (
+      <Card>
+        <CardHeader title="Fila de tarefas" subtitle="Envios de campanha, cadências e enriquecimento em segundo plano." />
+        <p className="text-sm text-[var(--ff-text-muted)]">
+          Não foi possível ler a fila. Confira se SUPABASE_SERVICE_ROLE_KEY está configurada neste ambiente.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Card>
+        <CardHeader
+          title="Fila de tarefas"
+          subtitle="Envios de campanha, cadências e enriquecimento em segundo plano. O banco chama o worker a cada 5 minutos."
+        />
+        {queue.stalled && queue.oldestDueAt ? (
+          <p role="alert" className="mb-3 text-sm text-[var(--ff-danger)]">
+            Há tarefas prontas esperando desde {formatDateTime(queue.oldestDueAt)} — o worker não está sendo
+            chamado. Confira o agendamento (pg_cron) e a URL configurada em configure_jobs_worker.
+          </p>
+        ) : null}
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+          {[
+            { label: "Na fila", value: queue.counts.queued },
+            { label: "Processando", value: queue.counts.processing },
+            { label: "Concluídas", value: queue.counts.succeeded },
+            { label: "Falharam", value: queue.counts.deadLetter },
+          ].map((item) => (
+            <div key={item.label}>
+              <dt className="text-xs text-[var(--ff-text-muted)]">{item.label}</dt>
+              <dd className="ff-tabular-nums text-2xl font-semibold text-[var(--ff-text-primary)]">
+                {item.value.toLocaleString("pt-BR")}
+              </dd>
+            </div>
+          ))}
+          <div>
+            <dt className="text-xs text-[var(--ff-text-muted)]">Última conclusão</dt>
+            <dd className="text-sm text-[var(--ff-text-primary)]">
+              {queue.lastCompletedAt ? formatRelativeDateTime(queue.lastCompletedAt) : "Nunca"}
+            </dd>
+          </div>
+        </dl>
+      </Card>
+
+      <Card>
+        <CardHeader title="Tarefas recentes" subtitle="As 30 mais novas, de qualquer organização." />
+        {queue.recent.length === 0 ? (
+          <p className="text-sm text-[var(--ff-text-muted)]">Nenhuma tarefa registrada ainda.</p>
+        ) : (
+          <ul>
+            {queue.recent.map((job) => {
+              const status = JOB_STATUS_LABEL[job.status] ?? { label: job.status, variant: "outline" as const };
+              return (
+                <li
+                  key={job.id}
+                  className="flex flex-col gap-1 border-b border-[var(--ff-border-subtle)] py-2.5 text-sm last:border-0"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-[var(--ff-text-primary)]">{job.jobType}</span>
+                    <span className="flex items-center gap-2">
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                      <span className="text-xs text-[var(--ff-text-muted)]">
+                        {job.completedAt
+                          ? `concluída ${formatDateTime(job.completedAt)}`
+                          : `agendada para ${formatDateTime(job.runAfter)}`}
+                      </span>
+                    </span>
+                  </div>
+                  {job.lastError ? (
+                    <p className="text-xs text-[var(--ff-danger)]">
+                      Tentativa {job.attempts}/{job.maxAttempts}: {job.lastError}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export default async function AdminPage() {
   const supabase = await createClient();
   const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
@@ -245,11 +341,12 @@ export default async function AdminPage() {
     data: { user: currentUser },
   } = await supabase.auth.getUser();
 
-  const [organizations, users, systemLogs, loginAttempts] = await Promise.all([
+  const [organizations, users, systemLogs, loginAttempts, queue] = await Promise.all([
     listOrganizationsForReview(),
     listAllUsersForAdmin(),
     listRecentSystemLogs(100),
     listRecentLoginAttempts(100),
+    getQueueHealth(),
   ]);
 
   return (
@@ -271,6 +368,11 @@ export default async function AdminPage() {
             key: "users",
             label: "Usuários",
             content: <UsersSection users={users} currentUserId={currentUser?.id ?? ""} />,
+          },
+          {
+            key: "queue",
+            label: `Fila${queue.counts.deadLetter > 0 ? " ●" : ""}`,
+            content: <QueueSection queue={queue} />,
           },
           {
             key: "logs",

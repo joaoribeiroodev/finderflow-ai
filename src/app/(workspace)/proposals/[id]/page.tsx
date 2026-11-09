@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getProposalDetail } from "@/modules/proposals/proposals.service";
 import { getProposalPdfSignedUrl } from "@/modules/proposals/pdf.service";
 import { listActiveServices } from "@/modules/services/services.service";
@@ -29,7 +29,7 @@ export const metadata: Metadata = { title: "Proposta — FinderFlow AI" };
 
 export default async function ProposalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [proposal, services] = await Promise.all([

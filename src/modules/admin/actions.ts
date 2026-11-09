@@ -22,8 +22,8 @@ export interface OrganizationReviewRow {
 
 /**
  * Lista organizações para o painel /admin. Depende das policies
- * `organizations_select_super_admin` / `members_select_super_admin` /
- * `profiles_select_super_admin` (Fase 9) — quem chama sem ser super
+ * `organizations_select_visible` / `members_select_visible` /
+ * `profiles_select_visible` (que incluem o super admin) — quem chama sem ser super
  * admin simplesmente não vê nada além das próprias organizações.
  *
  * O e-mail do owner não existe em `public.*` (vem de `auth.users`), por
@@ -462,5 +462,114 @@ export async function listRecentLoginAttempts(limit = 100): Promise<LoginAttempt
     }));
   } catch {
     return [];
+  }
+}
+
+export interface QueueJobRow {
+  id: string;
+  jobType: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  runAfter: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface QueueHealth {
+  /** `false` quando não deu para ler a fila (service role ausente, por exemplo). */
+  available: boolean;
+  counts: { queued: number; processing: number; succeeded: number; deadLetter: number };
+  /** Quando o worker concluiu um job pela última vez — o sinal de que o agendador está vivo. */
+  lastCompletedAt: string | null;
+  /** O job pronto há mais tempo esperando; se for antigo, o worker não está rodando. */
+  oldestDueAt: string | null;
+  /** Há job pronto esperando há mais de 20 minutos (4 ciclos do agendador). */
+  stalled: boolean;
+  recent: QueueJobRow[];
+}
+
+const QUEUE_STALLED_AFTER_MS = 20 * 60 * 1000;
+
+const EMPTY_QUEUE_HEALTH: QueueHealth = {
+  available: false,
+  counts: { queued: 0, processing: 0, succeeded: 0, deadLetter: 0 },
+  lastCompletedAt: null,
+  oldestDueAt: null,
+  stalled: false,
+  recent: [],
+};
+
+/**
+ * Saúde da fila assíncrona para a aba "Fila" do painel admin: sem isto, a
+ * única forma de saber se o worker estava rodando era consultar o banco à
+ * mão — e ele ficou parado em produção sem ninguém perceber. Mesma
+ * autorização de `listRecentSystemLogs` (super admin checado em código).
+ */
+export async function getQueueHealth(): Promise<QueueHealth> {
+  const supabase = await createClient();
+  const isSuperAdmin = await isCurrentUserSuperAdmin(supabase);
+  if (!isSuperAdmin) return EMPTY_QUEUE_HEALTH;
+
+  try {
+    const admin = createAdminClient();
+    const countByStatus = async (status: string): Promise<number> => {
+      const { count, error } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("status", status);
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    };
+
+    const [queued, processing, succeeded, deadLetter, lastCompleted, oldestDue, recent] = await Promise.all([
+      countByStatus("queued"),
+      countByStatus("processing"),
+      countByStatus("succeeded"),
+      countByStatus("dead_letter"),
+      admin
+        .from("jobs")
+        .select("completed_at")
+        .eq("status", "succeeded")
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("jobs")
+        .select("run_after")
+        .eq("status", "queued")
+        .lte("run_after", new Date().toISOString())
+        .order("run_after", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("jobs")
+        .select("id, job_type, status, attempts, max_attempts, last_error, run_after, created_at, completed_at")
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]);
+
+    if (recent.error) throw new Error(recent.error.message);
+
+    return {
+      available: true,
+      counts: { queued, processing, succeeded, deadLetter },
+      lastCompletedAt: lastCompleted.data?.completed_at ?? null,
+      oldestDueAt: oldestDue.data?.run_after ?? null,
+      stalled:
+        Boolean(oldestDue.data?.run_after) &&
+        Date.now() - new Date(oldestDue.data!.run_after).getTime() > QUEUE_STALLED_AFTER_MS,
+      recent: (recent.data ?? []).map((row) => ({
+        id: row.id,
+        jobType: row.job_type,
+        status: row.status,
+        attempts: row.attempts,
+        maxAttempts: row.max_attempts,
+        lastError: row.last_error,
+        runAfter: row.run_after,
+        createdAt: row.created_at,
+        completedAt: row.completed_at,
+      })),
+    };
+  } catch {
+    return EMPTY_QUEUE_HEALTH;
   }
 }

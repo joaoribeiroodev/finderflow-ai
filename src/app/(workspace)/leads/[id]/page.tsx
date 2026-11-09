@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, History, Users } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getLeadDetail } from "@/modules/leads/leads.service";
 import { listPipelineStages } from "@/modules/pipeline/pipeline.service";
 import { listProposalsForLead } from "@/modules/proposals/proposals.service";
@@ -47,7 +47,7 @@ export const metadata: Metadata = { title: "Lead — FinderFlow AI" };
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [lead, stages] = await Promise.all([

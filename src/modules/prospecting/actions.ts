@@ -5,18 +5,31 @@ import { logger } from "@/lib/logger/logger";
 import type { Json } from "@/types/database";
 import { assertCanEditOrganization, PermissionError } from "@/lib/permissions/permissions";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
-import { createCompanyFromSearchResult, DuplicateCompanyError } from "@/modules/companies/companies.service";
 import {
+  CompanyAlreadyConvertedError,
+  convertCompanyToLead,
+  createCompanyFromSearchResult,
+  DuplicateCompanyError,
+  getActiveLeadIdForCompany,
+} from "@/modules/companies/companies.service";
+import {
+  BusinessProviderUnavailableError,
   BusinessSearchQueryTooBroadError,
   getBusinessDataProvider,
   ProviderNotConfiguredError,
   type BusinessSearchResultItem,
 } from "@/modules/companies/providers/business-data-provider";
 import { resolveSegmentToCnae } from "@/modules/companies/providers/cnae-resolver";
-import { getWebPresenceChecker } from "@/modules/companies/presence/get-web-presence-checker";
+import {
+  getWebPresenceChecker,
+  isBulkPresenceCheckAllowed,
+} from "@/modules/companies/presence/get-web-presence-checker";
+import type { WebPresenceChecker } from "@/modules/companies/presence/web-presence-checker";
 import { formatCnpj, isValidCnpj, normalizeDocument } from "@/lib/utils/normalize";
+import { formatDateTime } from "@/lib/utils/format";
 
 import { getSearchWithResults, listSearchHistory } from "./history.service";
+import { PRESENCE_BATCH_MAX } from "./constants";
 import { buildAttributionLabel } from "./shared";
 
 export interface SearchResultView {
@@ -43,6 +56,8 @@ export interface SearchActionResult {
   providerNotConfigured?: boolean;
   results?: SearchResultView[];
   resolvedSegmentLabel?: string | null;
+  /** Aviso não bloqueante exibido junto dos resultados (ex.: dados vindos de uma consulta anterior). */
+  notice?: string;
   /** Para montar o link de exportação em XLSX (`/api/v1/search-results/:searchId/export`) sem nova busca. */
   searchId?: string;
 }
@@ -175,6 +190,12 @@ export async function searchCompaniesAction(
       results: resultViews,
       resolvedSegmentLabel: segmentResolution.matchedLabel,
       searchId: search.id,
+      notice:
+        page.cache?.state === "stale"
+          ? `O provedor de dados está indisponível agora — estes são os resultados da última consulta igual a esta, feita em ${formatDateTime(page.cache.fetchedAt)}.`
+          : page.partial
+            ? "O provedor de dados parou de responder no meio da busca — a lista abaixo pode estar incompleta. Tente de novo em alguns minutos para ver o restante."
+            : undefined,
     };
   } catch (error) {
     await supabase.from("searches").update({ status: "failed" }).eq("id", search.id);
@@ -182,9 +203,14 @@ export async function searchCompaniesAction(
     if (error instanceof ProviderNotConfiguredError) {
       return { success: false, providerNotConfigured: true, message: error.message };
     }
-    if (error instanceof BusinessSearchQueryTooBroadError) {
+    if (error instanceof BusinessSearchQueryTooBroadError || error instanceof BusinessProviderUnavailableError) {
       return { success: false, message: error.message };
     }
+    logger.error("Falha inesperada na busca de empresas", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      organizationId,
+      searchId: search.id,
+    });
     return { success: false, message: "Não foi possível buscar empresas agora." };
   }
 }
@@ -317,6 +343,9 @@ export async function searchByCnpjAction(
     if (error instanceof ProviderNotConfiguredError) {
       return { success: false, providerNotConfigured: true, message: error.message };
     }
+    if (error instanceof BusinessProviderUnavailableError) {
+      return { success: false, message: error.message };
+    }
     logger.error("Falha ao buscar empresa por CNPJ", {
       error: error instanceof Error ? error.message : "erro desconhecido",
       organizationId,
@@ -343,24 +372,22 @@ export interface ConvertResultActionState {
   companyId?: string;
 }
 
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+type ConvertOutcome = { ok: true; companyId: string } | { ok: false; message: string };
+
 /**
- * Converte um `search_results` já salvo em uma empresa cadastrada
- * (ver `createCompanyFromSearchResult`). Nunca mescla automaticamente
- * com uma empresa parecida — a mesma política conservadora do CSV.
+ * Cria a empresa a partir de um `search_results` já salvo (ou devolve a
+ * empresa já criada, se o resultado já tinha sido convertido). Nunca
+ * mescla automaticamente com uma empresa parecida — a mesma política
+ * conservadora do CSV.
  */
-export async function convertSearchResultToCompanyAction(
+async function ensureCompanyForSearchResult(
+  supabase: Supabase,
+  organizationId: string,
   searchResultId: string,
-): Promise<ConvertResultActionState> {
-  const supabase = await createClient();
-  const { organizationId } = await requireActiveOrganization();
-
-  try {
-    await assertCanEditOrganization(supabase, organizationId);
-  } catch (error) {
-    if (error instanceof PermissionError) return { success: false, message: error.message };
-    throw error;
-  }
-
+  options: { reuseExisting: boolean },
+): Promise<ConvertOutcome> {
   const { data: resultRow, error: fetchError } = await supabase
     .from("search_results")
     .select("*")
@@ -369,15 +396,26 @@ export async function convertSearchResultToCompanyAction(
     .maybeSingle();
 
   if (fetchError || !resultRow) {
-    return { success: false, message: "Resultado de busca não encontrado." };
+    return { ok: false, message: "Resultado de busca não encontrado." };
   }
 
   if (resultRow.company_id) {
-    return { success: false, message: "Este resultado já foi convertido em empresa." };
+    return options.reuseExisting
+      ? { ok: true, companyId: resultRow.company_id }
+      : { ok: false, message: "Este resultado já foi convertido em empresa." };
   }
 
   const displayData = (resultRow.display_data ?? {}) as Record<string, unknown>;
   const raw = (displayData.raw ?? {}) as Record<string, unknown>;
+  // Se "Verificar site" já achou um site para este resultado, ele vai
+  // junto no cadastro — o provedor de CNPJ nunca traz esse campo.
+  const webPresence = (displayData.webPresence ?? {}) as Record<string, unknown>;
+  const website =
+    typeof displayData.website === "string"
+      ? displayData.website
+      : webPresence.hasWebsite === true && typeof webPresence.websiteUrl === "string"
+        ? webPresence.websiteUrl
+        : undefined;
 
   try {
     const company = await createCompanyFromSearchResult(
@@ -387,7 +425,7 @@ export async function convertSearchResultToCompanyAction(
         name: typeof displayData.name === "string" ? displayData.name : "(sem nome)",
         cnpj: resultRow.external_id,
         category: typeof displayData.category === "string" ? displayData.category : undefined,
-        website: typeof displayData.website === "string" ? displayData.website : undefined,
+        website,
         phone: typeof displayData.phone === "string" ? displayData.phone : undefined,
         email: typeof raw.email === "string" ? raw.email : undefined,
         city: typeof raw.municipio === "string" ? raw.municipio : undefined,
@@ -403,17 +441,89 @@ export async function convertSearchResultToCompanyAction(
 
     await supabase.from("search_results").update({ company_id: company.id }).eq("id", resultRow.id);
 
-    return { success: true, companyId: company.id };
+    return { ok: true, companyId: company.id };
   } catch (error) {
     if (error instanceof DuplicateCompanyError) {
-      return { success: false, message: error.message };
+      return { ok: false, message: error.message };
     }
     logger.error("Falha ao converter resultado de busca em empresa", {
       error: error instanceof Error ? error.message : "erro desconhecido",
       organizationId,
       searchResultId,
     });
-    return { success: false, message: "Não foi possível cadastrar esta empresa agora." };
+    return { ok: false, message: "Não foi possível cadastrar esta empresa agora." };
+  }
+}
+
+/** Converte um resultado de busca em empresa cadastrada (ver `ensureCompanyForSearchResult`). */
+export async function convertSearchResultToCompanyAction(
+  searchResultId: string,
+): Promise<ConvertResultActionState> {
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  try {
+    await assertCanEditOrganization(supabase, organizationId);
+  } catch (error) {
+    if (error instanceof PermissionError) return { success: false, message: error.message };
+    throw error;
+  }
+
+  const outcome = await ensureCompanyForSearchResult(supabase, organizationId, searchResultId, {
+    reuseExisting: false,
+  });
+  return outcome.ok ? { success: true, companyId: outcome.companyId } : { success: false, message: outcome.message };
+}
+
+export interface ConvertResultToLeadActionState {
+  success: boolean;
+  message?: string;
+  companyId?: string;
+  leadId?: string;
+}
+
+/**
+ * Atalho de triagem: cadastra a empresa (se ainda não foi) e já cria o
+ * lead na primeira etapa do pipeline — antes eram duas telas e dois
+ * cliques por empresa. Se a empresa já tiver um lead ativo, devolve esse
+ * lead em vez de falhar.
+ */
+export async function convertSearchResultToLeadAction(
+  searchResultId: string,
+): Promise<ConvertResultToLeadActionState> {
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  try {
+    await assertCanEditOrganization(supabase, organizationId);
+  } catch (error) {
+    if (error instanceof PermissionError) return { success: false, message: error.message };
+    throw error;
+  }
+
+  const outcome = await ensureCompanyForSearchResult(supabase, organizationId, searchResultId, {
+    reuseExisting: true,
+  });
+  if (!outcome.ok) return { success: false, message: outcome.message };
+
+  try {
+    const leadId = await convertCompanyToLead(supabase, organizationId, outcome.companyId);
+    return { success: true, companyId: outcome.companyId, leadId };
+  } catch (error) {
+    if (error instanceof CompanyAlreadyConvertedError) {
+      const existingLeadId = await getActiveLeadIdForCompany(supabase, organizationId, outcome.companyId);
+      return { success: true, companyId: outcome.companyId, leadId: existingLeadId ?? undefined };
+    }
+    logger.error("Falha ao criar lead a partir de resultado de busca", {
+      error: error instanceof Error ? error.message : "erro desconhecido",
+      organizationId,
+      searchResultId,
+    });
+    return {
+      success: false,
+      companyId: outcome.companyId,
+      message: "A empresa foi cadastrada, mas não foi possível criar o lead agora.",
+    };
   }
 }
 
@@ -426,26 +536,15 @@ export interface CheckWebPresenceActionState {
 }
 
 /**
- * Verifica (via `WebPresenceChecker`, ver `modules/companies/presence/`)
- * se a empresa de um resultado de busca aparenta ter site próprio — o
- * sinal central de prospecção do FinderFlow AI. Ação manual por
- * resultado, de propósito: cada chamada consome a cota da API de busca
- * usada, então nunca é disparada automaticamente para uma lista inteira
- * (ver o comentário em `brave-web-presence-checker.ts`).
+ * Verifica um resultado e grava o achado em `display_data.webPresence`.
+ * Compartilhado pela ação individual e pela verificação em lote.
  */
-export async function checkWebPresenceAction(searchResultId: string): Promise<CheckWebPresenceActionState> {
-  const checker = getWebPresenceChecker();
-  if (!checker) {
-    return {
-      success: false,
-      checkerNotConfigured: true,
-      message: "Verificação de presença digital indisponível neste ambiente.",
-    };
-  }
-
-  const supabase = await createClient();
-  const { organizationId } = await requireActiveOrganization();
-
+async function runPresenceCheck(
+  supabase: Supabase,
+  organizationId: string,
+  checker: WebPresenceChecker,
+  searchResultId: string,
+): Promise<CheckWebPresenceActionState> {
   const { data: resultRow, error: fetchError } = await supabase
     .from("search_results")
     .select("display_data")
@@ -474,6 +573,7 @@ export async function checkWebPresenceAction(searchResultId: string): Promise<Ch
     await supabase
       .from("search_results")
       .update({ display_data: { ...displayData, webPresence: presence } as unknown as Json })
+      .eq("organization_id", organizationId)
       .eq("id", searchResultId);
 
     return { success: true, hasWebsite: presence.hasWebsite, websiteUrl: presence.websiteUrl };
@@ -485,6 +585,79 @@ export async function checkWebPresenceAction(searchResultId: string): Promise<Ch
     });
     return { success: false, message: "Não foi possível verificar a presença digital agora." };
   }
+}
+
+/**
+ * Verifica (via `WebPresenceChecker`, ver `modules/companies/presence/`)
+ * se a empresa de um resultado de busca aparenta ter site próprio — o
+ * sinal central de prospecção do FinderFlow AI.
+ */
+export async function checkWebPresenceAction(searchResultId: string): Promise<CheckWebPresenceActionState> {
+  const checker = getWebPresenceChecker();
+  if (!checker) {
+    return {
+      success: false,
+      checkerNotConfigured: true,
+      message: "Verificação de presença digital indisponível neste ambiente.",
+    };
+  }
+
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+  return runPresenceCheck(supabase, organizationId, checker, searchResultId);
+}
+
+export interface CheckWebPresenceBatchActionState {
+  success: boolean;
+  message?: string;
+  /** Um item por id recebido, na mesma ordem. */
+  outcomes?: Array<CheckWebPresenceActionState & { searchResultId: string }>;
+}
+
+/**
+ * Verificação em lote ("Verificar site de todos"): até
+ * `PRESENCE_BATCH_MAX` resultados por chamada, em paralelo no servidor —
+ * o cliente manda a lista em pedaços e mostra o progresso.
+ *
+ * Só é permitida com o verificador por domínio (padrão, sem cota). Com a
+ * Brave Search configurada cada verificação gasta a cota mensal da chave,
+ * então lá continua valendo o clique manual por resultado.
+ */
+export async function checkWebPresenceBatchAction(
+  searchResultIds: string[],
+): Promise<CheckWebPresenceBatchActionState> {
+  if (!isBulkPresenceCheckAllowed()) {
+    return {
+      success: false,
+      message: "A verificação em lote não está disponível com o verificador configurado neste ambiente.",
+    };
+  }
+
+  if (
+    !Array.isArray(searchResultIds) ||
+    searchResultIds.length === 0 ||
+    searchResultIds.length > PRESENCE_BATCH_MAX ||
+    searchResultIds.some((id) => typeof id !== "string" || id.length === 0)
+  ) {
+    return { success: false, message: "Lote de verificação inválido." };
+  }
+
+  const checker = getWebPresenceChecker();
+  if (!checker) {
+    return { success: false, message: "Verificação de presença digital indisponível neste ambiente." };
+  }
+
+  const supabase = await createClient();
+  const { organizationId } = await requireActiveOrganization();
+
+  const outcomes = await Promise.all(
+    searchResultIds.map(async (searchResultId) => ({
+      searchResultId,
+      ...(await runPresenceCheck(supabase, organizationId, checker, searchResultId)),
+    })),
+  );
+
+  return { success: true, outcomes };
 }
 
 export interface SearchHistoryEntryView {

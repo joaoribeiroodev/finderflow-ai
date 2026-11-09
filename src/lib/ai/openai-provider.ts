@@ -93,6 +93,10 @@ export class OpenAIProvider implements AIProvider {
             parameters: tool.parameters,
           }),
         ),
+        // O Copilot confirma uma ação por vez com o usuário (ver
+        // copilot.service.ts); sem isto o modelo às vezes devolvia duas
+        // chamadas no mesmo turno e a conversa era abortada.
+        parallel_tool_calls: input.tools && input.tools.length > 0 ? false : undefined,
         previous_response_id: input.previousResponseId,
       });
 
