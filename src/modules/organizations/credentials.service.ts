@@ -4,6 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { logger } from "@/lib/logger/logger";
 import type { Database } from "@/types/database";
+import { resolveOrgAsaasCredentials } from "@/modules/organizations/asaas-credentials";
+import { getAsaasInvoiceCustomization, type AsaasInvoiceCustomization } from "@/lib/contracts/asaas-charges-client";
 
 type Supabase = SupabaseClient<Database>;
 
@@ -64,4 +66,28 @@ export async function getOrganizationIntegrationStatus(
     gmailEmail: data.gmail_email,
     pagespeedConfigured: Boolean(data.pagespeed_configured_at),
   };
+}
+
+/**
+ * Busca a personalização de fatura atual da conta Asaas da organização
+ * (ver `getAsaasInvoiceCustomization`) — chamada de verdade à API da
+ * Asaas, não ao nosso banco, então degrada para `null` (sem travar a
+ * página de Configurações) se a chave não estiver configurada ou a
+ * Asaas não responder.
+ */
+export async function getOrganizationAsaasInvoiceCustomization(
+  organizationId: string,
+): Promise<AsaasInvoiceCustomization | null> {
+  const credentials = await resolveOrgAsaasCredentials(organizationId);
+  if (!credentials) return null;
+
+  try {
+    return await getAsaasInvoiceCustomization(credentials.baseUrl, credentials.apiKey);
+  } catch (error) {
+    logger.warn("Falha ao consultar personalização de fatura na Asaas", {
+      error: (error as Error).message,
+      organizationId,
+    });
+    return null;
+  }
 }

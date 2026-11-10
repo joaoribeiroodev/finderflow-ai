@@ -11,11 +11,13 @@ import {
   clearOpenAiCredentialsAction,
   clearPageSpeedCredentialsAction,
   saveAsaasCredentialsAction,
+  saveAsaasInvoiceCustomizationAction,
   saveGmailCredentialsAction,
   saveOpenAiCredentialsAction,
   savePageSpeedCredentialsAction,
   type CredentialsActionResult,
 } from "@/modules/organizations/credentials.actions";
+import type { AsaasInvoiceCustomization } from "@/lib/contracts/asaas-charges-client";
 
 const initialState: CredentialsActionResult = { success: false };
 
@@ -80,6 +82,116 @@ export function AsaasCredentialsForm({
             Remover chave da Asaas
           </Button>
         </form>
+      ) : null}
+    </div>
+  );
+}
+
+const INVOICE_STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
+  APPROVED: { label: "Aprovada", variant: "success" },
+  AWAITING_APPROVAL: { label: "Em revisão pela Asaas", variant: "warning" },
+  REJECTED: { label: "Rejeitada", variant: "danger" },
+};
+
+/**
+ * Personalização da tela de fatura/pagamento da Asaas (logo + cores) —
+ * só aparece quando a chave Asaas da organização já está configurada
+ * acima. `current` vem de uma chamada de verdade à API da Asaas feita
+ * no servidor (nada disso é guardado no nosso banco).
+ */
+export function AsaasInvoiceCustomizationForm({
+  current,
+}: {
+  current: AsaasInvoiceCustomization | null;
+}) {
+  const [state, formAction, isPending] = useActionState(saveAsaasInvoiceCustomizationAction, initialState);
+  const statusInfo = current?.status ? INVOICE_STATUS_LABEL[current.status] : null;
+
+  return (
+    <div className="flex flex-col gap-3 border-b border-[var(--ff-border-subtle)] py-5">
+      <div className="flex items-center gap-2">
+        <p className="text-sm font-medium text-[var(--ff-text-primary)]">
+          Personalização da fatura (Asaas)
+        </p>
+        {statusInfo ? <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge> : null}
+      </div>
+      <p className="text-xs text-[var(--ff-text-muted)]">
+        Logo e cores da tela de pagamento que o seu cliente vê ao abrir um boleto, Pix ou link de
+        cartão criado em Contratos. Cada envio passa por revisão da própria Asaas (costuma levar
+        algumas horas) — até ser aprovado, a personalização anterior continua valendo.
+      </p>
+      {current?.observations ? (
+        <p className="text-xs text-[var(--ff-text-muted)]">Observação da Asaas: {current.observations}</p>
+      ) : null}
+      <form action={formAction} className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--ff-text-primary)]" htmlFor="logoBackgroundColor">
+              Fundo do logo
+            </label>
+            <input
+              id="logoBackgroundColor"
+              name="logoBackgroundColor"
+              type="color"
+              defaultValue={current?.logoBackgroundColor ?? "#1a1a2e"}
+              className="h-11 w-16 cursor-pointer rounded-lg border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-elevated)]"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--ff-text-primary)]" htmlFor="infoBackgroundColor">
+              Fundo das informações
+            </label>
+            <input
+              id="infoBackgroundColor"
+              name="infoBackgroundColor"
+              type="color"
+              defaultValue={current?.infoBackgroundColor ?? "#ffffff"}
+              className="h-11 w-16 cursor-pointer rounded-lg border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-elevated)]"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--ff-text-primary)]" htmlFor="fontColor">
+              Cor da fonte
+            </label>
+            <input
+              id="fontColor"
+              name="fontColor"
+              type="color"
+              defaultValue={current?.fontColor ?? "#1a1a2e"}
+              className="h-11 w-16 cursor-pointer rounded-lg border border-[var(--ff-border-subtle)] bg-[var(--ff-bg-elevated)]"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-[var(--ff-text-primary)]" htmlFor="logoFile">
+              Logo {current?.logoUrl ? "(substituir)" : ""}
+            </label>
+            {current?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- imagem externa (Asaas), fora do domínio configurado para next/image
+              <img src={current.logoUrl} alt="Logo atual" className="h-11 w-auto rounded-lg border border-[var(--ff-border-subtle)]" />
+            ) : null}
+            <input
+              id="logoFile"
+              name="logoFile"
+              type="file"
+              accept="image/png,image/jpeg"
+              className="text-xs text-[var(--ff-text-secondary)] file:mr-2 file:rounded-lg file:border-0 file:bg-[var(--ff-bg-elevated)] file:px-3 file:py-1.5 file:text-xs file:text-[var(--ff-text-primary)]"
+            />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-[var(--ff-text-secondary)]">
+          <input type="checkbox" name="enabled" defaultChecked={current?.enabled ?? true} className="size-4" />
+          Personalização habilitada
+        </label>
+        <div>
+          <Button type="submit" size="sm" disabled={isPending}>
+            {isPending ? "Enviando..." : "Salvar personalização"}
+          </Button>
+        </div>
+      </form>
+      {state.message ? (
+        <p role="alert" className={`text-xs ${state.success ? "text-[var(--ff-success)]" : "text-[var(--ff-danger)]"}`}>
+          {state.message}
+        </p>
       ) : null}
     </div>
   );

@@ -2026,3 +2026,52 @@ opção falha ao salvar a cobrança localmente (a cobrança já foi criada na
 Asaas, mas o insert local falha pela constraint — mensagem de erro já
 cobre esse caso: "a cobrança foi criada na Asaas, mas não foi possível
 salvar o registro local").
+
+## Personalização da fatura Asaas (logo + cores) — 2026-11-10
+
+Usuário pediu para poder subir um template personalizado nas telas de
+pagamento da Asaas (a página que o cliente final vê ao abrir um boleto,
+Pix ou link de cartão). Verificado contra a documentação oficial
+(docs.asaas.com, reverificada nesta sessão): existe
+`GET`/`POST https://api[-sandbox].asaas.com/v3/myAccount/paymentCheckoutConfig/`,
+que aceita `logoBackgroundColor`, `infoBackgroundColor` e `fontColor`
+(as três cores obrigatórias) mais `enabled` e um `logoFile` opcional
+via `multipart/form-data` (omitir `logoFile` mantém o logo já aprovado).
+A resposta inclui `status`: `AWAITING_APPROVAL` | `APPROVED` |
+`REJECTED` e `observations` com o motivo quando a Asaas rejeita.
+
+**Aviso importante repassado ao usuário**: um `200` da Asaas não
+significa que a personalização já está valendo — todo envio passa pela
+revisão deles (costuma levar algumas horas); a configuração
+anteriormente aprovada continua ativa até a nova ser aprovada. Isso
+está explícito tanto na mensagem de sucesso da action quanto no texto
+fixo do formulário em Configurações → Integrações.
+
+Implementação, usando a mesma arquitetura de credenciais por
+organização já existente (chave Asaas vinda do Vault via
+`get_org_asaas_api_key`, nunca uma chave global):
+
+- `resolveOrgAsaasCredentials` extraído para
+  `src/modules/organizations/asaas-credentials.ts` (antes vivia
+  duplicado dentro de `contracts/actions.ts`) — agora reaproveitado
+  também aqui.
+- `getAsaasInvoiceCustomization`/`saveAsaasInvoiceCustomization` em
+  `src/lib/contracts/asaas-charges-client.ts` — o `saveAsaasInvoiceCustomization`
+  usa `fetch` com `FormData` direto (não o helper `asaasFetch`, que
+  fixa `content-type: application/json` e quebraria o multipart).
+- `getOrganizationAsaasInvoiceCustomization` em `credentials.service.ts`
+  (chamada de verdade à API da Asaas, não ao nosso banco — degrada para
+  `null` sem travar a página caso a chave não esteja configurada ou a
+  Asaas não responda) e `saveAsaasInvoiceCustomizationAction` em
+  `credentials.actions.ts`.
+- `AsaasInvoiceCustomizationForm` em `integration-credentials-form.tsx`
+  — três color pickers, upload de logo (preview do atual, se houver),
+  checkbox "habilitada", badge de status e texto da observação da
+  Asaas quando rejeitada. Só aparece em Configurações → Integrações
+  quando a organização já tem uma chave Asaas configurada.
+
+**Esta foi a primeira funcionalidade desta sessão que não precisou de
+nenhuma migration** — nada aqui é persistido no nosso banco; a Asaas é
+quem guarda e aplica a personalização. Nenhum dado de cartão ou
+credencial nova é manuseado por nós; usamos a chave Asaas que a própria
+organização já configurou.

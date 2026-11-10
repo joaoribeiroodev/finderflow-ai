@@ -227,6 +227,118 @@ export async function getAsaasPixQrCode(
   return { encodedImage: body.encodedImage ?? null, payload: body.payload ?? null };
 }
 
+export type AsaasInvoiceCustomizationStatus = "AWAITING_APPROVAL" | "APPROVED" | "REJECTED";
+
+export interface AsaasInvoiceCustomization {
+  logoUrl: string | null;
+  logoBackgroundColor: string | null;
+  infoBackgroundColor: string | null;
+  fontColor: string | null;
+  enabled: boolean;
+  /** Preenchido pela revisão da Asaas (ex.: "Aprovado automaticamente pelo sistema."). */
+  observations: string | null;
+  status: AsaasInvoiceCustomizationStatus | null;
+}
+
+function parseInvoiceCustomization(body: unknown): AsaasInvoiceCustomization {
+  const b = (body ?? {}) as Partial<{
+    logoUrl: string;
+    logoBackgroundColor: string;
+    infoBackgroundColor: string;
+    fontColor: string;
+    enabled: boolean;
+    observations: string;
+    status: AsaasInvoiceCustomizationStatus;
+  }>;
+  return {
+    logoUrl: b.logoUrl ?? null,
+    logoBackgroundColor: b.logoBackgroundColor ?? null,
+    infoBackgroundColor: b.infoBackgroundColor ?? null,
+    fontColor: b.fontColor ?? null,
+    enabled: b.enabled ?? true,
+    observations: b.observations ?? null,
+    status: b.status ?? null,
+  };
+}
+
+/**
+ * Personalização da tela de fatura/pagamento (logo + cores) — "Conta →
+ * Personalização" na própria Asaas, aqui exposta em Configurações →
+ * Integrações para não precisar sair do FinderFlow. Confirmado contra
+ * docs.asaas.com (reverificado 2026-11-10): cada envio passa por revisão
+ * da Asaas (leva algumas horas) — o 200 de volta não significa que já
+ * está no ar; a personalização anterior (se aprovada) continua valendo
+ * até a nova ser aprovada. `null` quando a organização nunca configurou
+ * nada (200 com objeto vazio) ou a chave ainda não tem permissão.
+ */
+export async function getAsaasInvoiceCustomization(
+  baseUrl: string,
+  apiKey: string,
+): Promise<AsaasInvoiceCustomization | null> {
+  const result = await asaasFetch(baseUrl, apiKey, "/myAccount/paymentCheckoutConfig/", { method: "GET" });
+  if (result.status !== 200) return null;
+  return parseInvoiceCustomization(result.body);
+}
+
+export interface SaveInvoiceCustomizationInput {
+  logoBackgroundColor: string;
+  infoBackgroundColor: string;
+  fontColor: string;
+  enabled: boolean;
+  /** Omitir mantém o logo já aprovado anteriormente. */
+  logoFile?: File | null;
+}
+
+/**
+ * `multipart/form-data` (exige o arquivo do logo como binário) — por
+ * isso não usa `asaasFetch` (que sempre fixa `content-type:
+ * application/json`): o `fetch` precisa montar o boundary sozinho a
+ * partir do `FormData`.
+ */
+export async function saveAsaasInvoiceCustomization(
+  baseUrl: string,
+  apiKey: string,
+  input: SaveInvoiceCustomizationInput,
+): Promise<AsaasInvoiceCustomization> {
+  const form = new FormData();
+  form.set("logoBackgroundColor", input.logoBackgroundColor);
+  form.set("infoBackgroundColor", input.infoBackgroundColor);
+  form.set("fontColor", input.fontColor);
+  form.set("enabled", String(input.enabled));
+  if (input.logoFile) form.set("logoFile", input.logoFile);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let status: number;
+  let body: unknown;
+  try {
+    const response = await fetch(`${baseUrl}/myAccount/paymentCheckoutConfig/`, {
+      method: "POST",
+      headers: { access_token: apiKey },
+      body: form,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    status = response.status;
+    body = text ? JSON.parse(text) : null;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AsaasChargesClientError("A Asaas não respondeu a tempo.");
+    }
+    throw new AsaasChargesClientError("Falha de rede ao chamar a Asaas.");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (status !== 200) {
+    logger.error("Falha ao salvar personalização de fatura na Asaas", { status });
+    throw new AsaasChargesClientError(asaasErrorMessage(body, "Não foi possível salvar a personalização."), status);
+  }
+
+  return parseInvoiceCustomization(body);
+}
+
 export interface AsaasChargeStatus {
   status: string;
   invoiceUrl: string | null;

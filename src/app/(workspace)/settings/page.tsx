@@ -3,7 +3,10 @@ import { Building2, Download, Shield, ShieldOff, Users, Plug, Lock, IdCard } fro
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
-import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
+import {
+  getOrganizationIntegrationStatus,
+  getOrganizationAsaasInvoiceCustomization,
+} from "@/modules/organizations/credentials.service";
 import { getOrganizationProfile } from "@/modules/organizations/profile.service";
 import { listSuppressionEntries } from "@/modules/suppression/suppression.service";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,6 +14,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   AsaasCredentialsForm,
+  AsaasInvoiceCustomizationForm,
   GmailCredentialsForm,
   OpenAiCredentialsForm,
   PageSpeedCredentialsForm,
@@ -53,11 +57,13 @@ export default async function SettingsPage() {
       : { data: [] as { id: string; full_name: string | null }[] };
   const fullNameByUserId = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
 
-  const [integrationStatus, organizationProfile, suppressionEntries] = await Promise.all([
-    getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
-    getOrganizationProfile(supabase, activeOrganization.organizationId),
-    listSuppressionEntries(supabase, activeOrganization.organizationId),
-  ]);
+  const [integrationStatus, organizationProfile, suppressionEntries, asaasInvoiceCustomization] =
+    await Promise.all([
+      getOrganizationIntegrationStatus(supabase, activeOrganization.organizationId),
+      getOrganizationProfile(supabase, activeOrganization.organizationId),
+      listSuppressionEntries(supabase, activeOrganization.organizationId),
+      getOrganizationAsaasInvoiceCustomization(activeOrganization.organizationId),
+    ]);
 
   const {
     data: { user: currentUser },
@@ -156,6 +162,9 @@ export default async function SettingsPage() {
           configured={integrationStatus.asaasConfigured}
           environment={integrationStatus.asaasEnvironment}
         />
+        {integrationStatus.asaasConfigured ? (
+          <AsaasInvoiceCustomizationForm current={asaasInvoiceCustomization} />
+        ) : null}
         <OpenAiCredentialsForm
           configured={integrationStatus.openaiConfigured}
           model={integrationStatus.openaiModel}

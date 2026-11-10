@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { resolveOrgAsaasCredentials } from "@/modules/organizations/asaas-credentials";
+import { saveAsaasInvoiceCustomization } from "@/lib/contracts/asaas-charges-client";
 import { logger } from "@/lib/logger/logger";
 import { logAudit } from "@/lib/audit/audit-log";
 
@@ -87,6 +89,76 @@ export async function clearAsaasCredentialsAction(): Promise<void> {
     });
   }
   revalidatePath("/settings");
+}
+
+/**
+ * Personalização da tela de fatura/pagamento da Asaas (logo + cores) —
+ * ver `saveAsaasInvoiceCustomization` para o que a API aceita e como o
+ * envio passa por revisão da própria Asaas antes de valer de verdade.
+ * Usa a mesma chave Asaas já configurada por esta organização; não
+ * grava nada no nosso banco (não há o que guardar — a Asaas é quem
+ * mantém o estado da personalização).
+ */
+export async function saveAsaasInvoiceCustomizationAction(
+  _prev: CredentialsActionResult,
+  formData: FormData,
+): Promise<CredentialsActionResult> {
+  const logoBackgroundColor = String(formData.get("logoBackgroundColor") ?? "").trim();
+  const infoBackgroundColor = String(formData.get("infoBackgroundColor") ?? "").trim();
+  const fontColor = String(formData.get("fontColor") ?? "").trim();
+  const enabled = formData.get("enabled") === "on";
+  const logoFileEntry = formData.get("logoFile");
+  const logoFile = logoFileEntry instanceof File && logoFileEntry.size > 0 ? logoFileEntry : null;
+
+  if (!logoBackgroundColor || !infoBackgroundColor || !fontColor) {
+    return { success: false, message: "Escolha as três cores antes de salvar." };
+  }
+
+  const org = await requireActiveOrganization();
+  const credentials = await resolveOrgAsaasCredentials(org.organizationId);
+  if (!credentials) {
+    return {
+      success: false,
+      message: "Configure a chave de API da Asaas desta organização antes de personalizar a fatura.",
+    };
+  }
+
+  try {
+    await saveAsaasInvoiceCustomization(credentials.baseUrl, credentials.apiKey, {
+      logoBackgroundColor,
+      infoBackgroundColor,
+      fontColor,
+      enabled,
+      logoFile,
+    });
+  } catch (error) {
+    logger.error("Falha ao salvar personalização de fatura Asaas", {
+      error: (error as Error).message,
+      organizationId: org.organizationId,
+    });
+    return {
+      success: false,
+      message: (error as Error).message || "Não foi possível salvar a personalização na Asaas.",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await logAudit({
+    organizationId: org.organizationId,
+    actorId: user?.id ?? null,
+    action: "integration_credentials.update",
+    resourceType: "organization_integration_credentials",
+    metadata: { provider: "asaas", change: "invoice_customization" },
+  });
+
+  revalidatePath("/settings");
+  return {
+    success: true,
+    message: "Enviado para a Asaas — a revisão deles costuma levar algumas horas antes de valer na fatura.",
+  };
 }
 
 export async function saveOpenAiCredentialsAction(
