@@ -36,6 +36,14 @@ import {
  *   nome↔código; por isso o filtro de cidade é feito do lado do cliente,
  *   comparando o campo `municipio` (nome, já "enriquecido" pela própria
  *   API) de cada resultado já retornado — ver `normalizeForCompare`.
+ * - A busca **não tem parâmetro para filtrar por situação cadastral**
+ *   (docs.minhareceita.org/como-usar/, reverificado 2026-11-10) — devolve
+ *   empresas baixadas/inaptas/suspensas junto com as ativas. Isso
+ *   explica buscas que "parecem inventadas": a empresa existiu de
+ *   verdade, mas já fechou, então não tem presença nenhuma para achar no
+ *   Google. Por isso o filtro por `descricao_situacao_cadastral ===
+ *   'ATIVA'` é feito do lado do cliente aqui, junto com o de cidade —
+ *   sem isso, a maioria dos resultados de prospecção seria empresa morta.
  * - `cursor` é opaco e só deve ser reenviado como veio; sem `cursor` na
  *   resposta, é a última página.
  *
@@ -136,6 +144,16 @@ function normalizeForCompare(value: string): string {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .trim();
+}
+
+/**
+ * A API não filtra por situação cadastral (ver comentário no topo do
+ * arquivo) — sem isto, buscas trazem empresas baixadas/inaptas/suspensas
+ * junto com as ativas, inflando a lista com empresas que já fecharam.
+ */
+function isActive(company: MinhaReceitaCompany): boolean {
+  if (!company.descricao_situacao_cadastral) return true; // sem o dado, não filtra (melhor false positivo que perder resultado)
+  return normalizeForCompare(company.descricao_situacao_cadastral) === "ativa";
 }
 
 function buildAddress(company: MinhaReceitaCompany): string | undefined {
@@ -357,6 +375,7 @@ export class MinhaReceitaProvider implements BusinessDataProvider {
       cursor = page.cursor;
 
       for (const company of page.data ?? []) {
+        if (!isActive(company)) continue;
         if (cityFilter && normalizeForCompare(company.municipio ?? "") !== cityFilter) continue;
         collected.push(mapToResultItem(company, query.cnaeCodes));
         if (collected.length >= MAX_RESULTS_PER_SEARCH) break;

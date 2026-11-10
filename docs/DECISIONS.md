@@ -1967,3 +1967,28 @@ deixar organizações/segredos órfãos se algo no meio falhar.
 como as anteriores. Sem ela, o botão "Excluir usuário" aparece mas a
 chamada a `admin_delete_user_cascade` falha (função inexistente) com
 mensagem de erro genérica, sem apagar nada.
+
+## Minha Receita devolvia empresa baixada/inapta/suspensa como se fosse ativa — 2026-11-10
+
+Usuário reportou: a maioria das empresas encontradas na busca "não
+existe" no Google. Causa real, confirmada contra a documentação oficial
+(docs.minhareceita.org/como-usar/, reverificada nesta sessão): **a busca
+por filtros (`GET /?uf=..&cnae=..`) não tem parâmetro de situação
+cadastral** — devolve junto empresas `BAIXADA`, `INAPTA` e `SUSPENSA`,
+que já fecharam ou estão irregulares com a Receita. A API só traz o
+campo `descricao_situacao_cadastral` na resposta para informar, não para
+filtrar. Sem filtrar isso no nosso lado, a maioria dos "leads" de uma
+busca podiam ser empresas mortas há anos — exatamente por isso não
+aparecem no Google: elas de fato não têm presença nenhuma, porque não
+operam mais.
+
+Corrigido em `minha-receita-provider.ts`: `isActive()` descarta no
+cliente qualquer resultado cuja `descricao_situacao_cadastral` não seja
+`ATIVA` (comparação normalizada — minúsculas/sem acento), no mesmo ponto
+do loop onde já existia o filtro de cidade. Quando a API não informa o
+campo (nunca visto em produção, mas a interface permite `undefined`), o
+resultado **não** é descartado — melhor um falso positivo ocasional do
+que perder resultado por falta de dado. Cache de busca
+(`provider_response_cache`) ainda estava vazio em produção no momento
+desta correção, então não havia nada antigo (com empresa baixada) para
+purgar.

@@ -94,6 +94,35 @@ describe("MinhaReceitaProvider", () => {
     expect(page.items[0].externalId).toBe("11222333000181");
   });
 
+  it("filtra empresas baixadas/inaptas/suspensas — a API não faz isso sozinha", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: [
+          SAMPLE_COMPANY,
+          { ...SAMPLE_COMPANY, cnpj: "99", descricao_situacao_cadastral: "BAIXADA" },
+          { ...SAMPLE_COMPANY, cnpj: "98", descricao_situacao_cadastral: "INAPTA" },
+          { ...SAMPLE_COMPANY, cnpj: "97", descricao_situacao_cadastral: "SUSPENSA" },
+        ],
+      }),
+    );
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const page = await provider.search({ query: "x", state: "BA" });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].externalId).toBe("11222333000181");
+  });
+
+  it("não filtra por situação quando a API não informa o campo (melhor manter do que perder resultado)", async () => {
+    const withoutStatus = { ...SAMPLE_COMPANY, descricao_situacao_cadastral: undefined };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: [withoutStatus] }));
+
+    const provider = new MinhaReceitaProvider("https://minhareceita.example");
+    const page = await provider.search({ query: "x", state: "BA" });
+
+    expect(page.items).toHaveLength(1);
+  });
+
   it("indica quando o match foi por CNAE secundário, não o principal", async () => {
     const secondaryMatchCompany = {
       ...SAMPLE_COMPANY,
