@@ -1992,3 +1992,37 @@ que perder resultado por falta de dado. Cache de busca
 (`provider_response_cache`) ainda estava vazio em produção no momento
 desta correção, então não havia nada antigo (com empresa baixada) para
 purgar.
+
+## Contratos: cartão de crédito/débito — 2026-11-10
+
+Usuário pediu para o cliente final poder pagar por cartão. O dropdown
+"Forma de cobrança" só tinha Boleto, Pix e "Link (cliente escolhe)"
+(`billingType: UNDEFINED`, que já deixa a Asaas oferecer o que estiver
+habilitado na conta — mas sem garantia de incluir cartão, e sem ser uma
+opção explícita e previsível para quem está criando a cobrança).
+
+Verificado contra a documentação oficial da Asaas (docs.asaas.com,
+reverificada nesta sessão): `billingType: "CREDIT_CARD"` no mesmo
+endpoint `POST /v3/payments` já usado aqui, **sem** enviar
+`creditCard`/`creditCardHolderInfo`, cria a cobrança e devolve
+`invoiceUrl` normalmente — o pagador digita os dados do cartão na página
+hospedada pela própria Asaas, exatamente como já acontece com
+Boleto/Pix. Nosso backend nunca recebe número de cartão (por isso esta
+mudança não esbarra na restrição de nunca digitar/processar dado
+financeiro sensível — quem recebe o cartão é a Asaas, não nós). A Asaas
+não tem um `billingType` de débito separado: a mesma página aceita
+cartão de débito (Maestro, Visa Electron) — a bandeira que o pagador
+digitar decide (confirmado em asaas.com/cobranca-cartao).
+
+Mudança: `AsaasBillingType` ganhou `"CREDIT_CARD"`; validação em
+`createChargeAction` e o `<select>` em `CreateChargeForm` ("Cartão de
+crédito ou débito"); rótulo no histórico de cobranças
+(`charges-history.tsx`). Migration
+`20261110173000_contracts_allow_credit_card.sql` troca a `check
+constraint` de `contract_charges.billing_type` para aceitar o novo
+valor — **não aplicada em produção** (mesmo bloqueio `[Production
+Deploy]`); até o usuário rodar manualmente no SQL Editor, escolher essa
+opção falha ao salvar a cobrança localmente (a cobrança já foi criada na
+Asaas, mas o insert local falha pela constraint — mensagem de erro já
+cobre esse caso: "a cobrança foi criada na Asaas, mas não foi possível
+salvar o registro local").

@@ -22,6 +22,7 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "danger" | "outline
 const BILLING_LABEL: Record<string, string> = {
   BOLETO: "Boleto",
   PIX: "Pix",
+  CREDIT_CARD: "Cartão",
   UNDEFINED: "Link",
 };
 

@@ -78,7 +78,7 @@ export async function createChargeAction(
   const description = String(formData.get("description") ?? "").trim() || null;
 
   if (!companyId) return { success: false, message: "Selecione uma empresa." };
-  if (!["BOLETO", "PIX", "UNDEFINED"].includes(billingType)) {
+  if (!["BOLETO", "PIX", "CREDIT_CARD", "UNDEFINED"].includes(billingType)) {
     return { success: false, message: "Selecione uma forma de cobrança válida." };
   }
   const value = Number(valueRaw);

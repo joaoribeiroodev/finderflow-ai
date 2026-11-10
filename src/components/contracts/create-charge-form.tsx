@@ -39,6 +39,7 @@ export function CreateChargeForm({ companies }: { companies: CompanyOption[] }) 
         <SelectField label="Forma de cobrança" name="billingType" required defaultValue="BOLETO">
           <option value="BOLETO">Boleto</option>
           <option value="PIX">Pix</option>
+          <option value="CREDIT_CARD">Cartão de crédito ou débito</option>
           <option value="UNDEFINED">Link (cliente escolhe)</option>
         </SelectField>
         <Field label="Valor (R$)" name="value" type="number" min="0.01" step="0.01" required />

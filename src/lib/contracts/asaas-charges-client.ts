@@ -133,7 +133,7 @@ export async function findOrCreateAsaasCustomer(
   return (created.body as { id: string }).id;
 }
 
-export type AsaasBillingType = "BOLETO" | "PIX" | "UNDEFINED";
+export type AsaasBillingType = "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED";
 
 export interface CreateChargeInput {
   customerId: string;
@@ -151,6 +151,16 @@ export interface CreatedCharge {
   bankSlipUrl: string | null;
 }
 
+/**
+ * `billingType: "CREDIT_CARD"` sem enviar `creditCard`/`creditCardHolderInfo`
+ * no corpo (confirmado contra docs.asaas.com, reverificado 2026-11-10) cria a
+ * cobrança e devolve `invoiceUrl` normalmente — o pagador digita os dados do
+ * próprio cartão na página hospedada pela Asaas, exatamente como já
+ * acontece com Boleto/Pix aqui. Nunca é o nosso backend que recebe número de
+ * cartão. A mesma página aceita cartão de débito (Maestro/Visa Electron) —
+ * a Asaas não tem um `billingType` de débito separado, a bandeira do cartão
+ * que o pagador digitar decide isso.
+ */
 export async function createAsaasCharge(
   baseUrl: string,
   apiKey: string,
