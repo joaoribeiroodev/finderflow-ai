@@ -1,39 +1,61 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getServerEnv } from "@/lib/env/env.server";
 import { logger } from "@/lib/logger/logger";
 import { claimNextJob, completeJob, failJob } from "@/lib/jobs/queue";
 import { resolveJobHandler, ensurePeriodicJobsSeeded } from "@/lib/jobs/job-handlers";
 
 /**
- * Worker da fila assíncrona (Fase 10 — fundações). Invocado pelo Vercel
- * Cron (ver `vercel.json`) a cada 5 minutos — a Vercel envia
- * automaticamente `Authorization: Bearer $CRON_SECRET` em chamadas de
- * Cron Job quando essa variável está configurada no projeto, então a
- * mesma verificação também cobre uma chamada manual de teste com o
- * header equivalente.
+ * Worker da fila assíncrona (Fase 10 — fundações).
  *
- * `CRON_SECRET` já existia no schema de env (`src/lib/env/env.server.ts`)
- * desde a Fase 9, órfão do job de billing removido — esta rota é o que
- * volta a dar uso real a essa variável (ver ETAPA-0-AUDITORIA.md seção 5,
- * risco #8).
+ * Quem chama: o `pg_cron` do próprio Supabase, a cada 5 minutos (migration
+ * 20261109233500_jobs_worker_pg_cron.sql). O plano Hobby da Vercel só
+ * permite cron 1x/dia e só autentica a chamada se `CRON_SECRET` existir no
+ * projeto, então o agendamento saiu do `vercel.json` e foi para o banco,
+ * que já é gratuito e já faz parte da stack.
+ *
+ * Autenticação — duas formas aceitas, ambas `Authorization: Bearer ...`:
+ * 1. o token que o banco gera e guarda no Vault, conferido de volta via
+ *    `verify_jobs_worker_token` (nenhum segredo copiado para a Vercel);
+ * 2. `CRON_SECRET`, se configurada — útil para disparo manual (curl) ou
+ *    para voltar a usar um agendador HTTP externo.
  *
  * Processa um lote limitado por tempo (não por contagem fixa) para nunca
  * passar perto do timeout de função da Vercel — cada job que sobrar
- * simplesmente espera a próxima invocação do cron.
+ * simplesmente espera a próxima invocação.
  */
 const MAX_BUDGET_MS = 50_000;
-const WORKER_ID = "vercel-cron";
+const WORKER_ID = "queue-worker";
+const DB_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
-function isAuthorized(request: Request): boolean {
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+async function isAuthorized(request: Request): Promise<boolean> {
+  const header = request.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return false;
+  const token = header.slice("Bearer ".length);
+
   const env = getServerEnv();
-  if (!env.CRON_SECRET) {
-    // Sem segredo configurado neste ambiente, a rota não pode ser
-    // habilitada — nunca processar jobs sem autenticação nenhuma.
+  if (env.CRON_SECRET && safeEqual(token, env.CRON_SECRET)) return true;
+
+  // Só consulta o banco para algo com o formato do token que ele gera —
+  // uma chamada anônima qualquer não vira uma query.
+  if (!DB_TOKEN_PATTERN.test(token)) return false;
+
+  try {
+    const { data, error } = await createAdminClient().rpc("verify_jobs_worker_token", { p_token: token });
+    return !error && data === true;
+  } catch {
+    // Service role ausente ou função ainda não migrada: sem como validar.
     return false;
   }
-  const header = request.headers.get("authorization");
-  return header === `Bearer ${env.CRON_SECRET}`;
 }
 
 async function runWorkerBatch(): Promise<{ processed: number; succeeded: number; failed: number }> {
@@ -73,7 +95,7 @@ async function runWorkerBatch(): Promise<{ processed: number; succeeded: number;
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
@@ -86,6 +108,6 @@ export async function GET(request: Request) {
   }
 }
 
-// Vercel Cron só envia GET, mas aceitar POST com a mesma autenticação
+// O pg_cron chama com GET, mas aceitar POST com a mesma autenticação
 // facilita um disparo manual (ex.: curl) sem depender do método exato.
 export const POST = GET;

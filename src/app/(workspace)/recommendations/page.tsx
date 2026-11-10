@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Lightbulb } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listActiveServices } from "@/modules/services/services.service";
 import {
   listServiceRecommendations,
@@ -36,7 +36,7 @@ export default async function RecommendationsPage({
   searchParams: Promise<{ serviceId?: string; priority?: string }>;
 }) {
   const params = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const priorityFilter =

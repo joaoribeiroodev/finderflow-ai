@@ -34,7 +34,7 @@ function describeEntry(entry: SearchHistoryEntryView): string {
  * qualquer uma delas sem gastar uma nova requisição ao provedor —
  * `reopenSearchAction` só lê o que já está salvo em `search_results`.
  */
-export function SearchHistoryPanel() {
+export function SearchHistoryPanel({ bulkPresenceCheck = false }: { bulkPresenceCheck?: boolean }) {
   const [entries, setEntries] = useState<SearchHistoryEntryView[] | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -132,6 +132,8 @@ export function SearchHistoryPanel() {
                 ) : openResults ? (
                   <div className="rounded-md bg-[var(--ff-bg-elevated)] p-3">
                     <SearchResultsList
+                      key={entry.searchId}
+                      bulkPresenceCheck={bulkPresenceCheck}
                       results={openResults}
                       resolvedSegmentLabel={openSegmentLabel}
                       searchId={entry.searchId}

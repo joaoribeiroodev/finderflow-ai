@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Globe, Mail, Phone, MapPin } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getCompanyById, getActiveLeadIdForCompany } from "@/modules/companies/companies.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -34,7 +34,7 @@ interface CompanyAddress {
 
 export default async function CompanyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const company = await getCompanyById(supabase, activeOrganization.organizationId, id);

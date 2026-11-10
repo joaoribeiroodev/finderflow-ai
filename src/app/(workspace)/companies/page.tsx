@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Building2, Plus, Upload } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listCompanies, listCompanyCategories } from "@/modules/companies/companies.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -30,7 +30,7 @@ export default async function CompaniesPage({
   searchParams: Promise<{ q?: string; category?: string; page?: string }>;
 }) {
   const params = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const page = Number(params.page ?? "1") || 1;

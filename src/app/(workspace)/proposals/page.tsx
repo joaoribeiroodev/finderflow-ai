@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FileText } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listProposals } from "@/modules/proposals/proposals.service";
 import { listLeadsForSelect } from "@/modules/leads/leads.service";
 import { PageHeader } from "@/components/layout/page-header";
@@ -22,7 +22,7 @@ export default async function ProposalsPage({
   searchParams: Promise<{ status?: string; leadId?: string }>;
 }) {
   const { status, leadId } = await searchParams;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const statusFilter = PROPOSAL_STATUSES.includes(status as ProposalStatus) ? (status as ProposalStatus) : undefined;

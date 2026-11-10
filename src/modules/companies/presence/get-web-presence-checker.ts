@@ -24,3 +24,11 @@ export function getWebPresenceChecker(): WebPresenceChecker | null {
   if (env.BRAVE_SEARCH_API_KEY) return new BraveWebPresenceChecker(env.BRAVE_SEARCH_API_KEY);
   return new DomainProbeWebPresenceChecker();
 }
+
+/**
+ * A verificação em lote só é liberada quando o verificador não consome
+ * cota de terceiros — ou seja, quando é o verificador por domínio.
+ */
+export function isBulkPresenceCheckAllowed(): boolean {
+  return !getServerEnv().BRAVE_SEARCH_API_KEY;
+}

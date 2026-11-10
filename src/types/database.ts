@@ -2346,6 +2346,30 @@ export type Database = {
           },
         ]
       }
+      provider_response_cache: {
+        Row: {
+          cache_key: string
+          fetched_at: string
+          kind: string
+          payload: Json
+          provider: string
+        }
+        Insert: {
+          cache_key: string
+          fetched_at?: string
+          kind: string
+          payload: Json
+          provider: string
+        }
+        Update: {
+          cache_key?: string
+          fetched_at?: string
+          kind?: string
+          payload?: Json
+          provider?: string
+        }
+        Relationships: []
+      }
       rate_limit_counters: {
         Row: {
           count: number
@@ -2883,6 +2907,7 @@ export type Database = {
       }
       is_org_member: { Args: { target_org: string }; Returns: boolean }
       is_platform_super_admin: { Args: never; Returns: boolean }
+      verify_jobs_worker_token: { Args: { p_token: string }; Returns: boolean }
       log_ai_usage: {
         Args: {
           p_duration_ms: number

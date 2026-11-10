@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getCadenceById, listCadenceSteps } from "@/modules/cadences/cadences.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Cadência — FinderFlow AI" };
 
 export default async function CadenceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const cadence = await getCadenceById(supabase, activeOrganization.organizationId, id);

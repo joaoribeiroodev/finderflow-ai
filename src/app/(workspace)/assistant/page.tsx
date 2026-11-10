@@ -7,7 +7,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatRelativeDateTime } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listConversations } from "@/modules/ai/copilot.service";
 import { resolveOpenAiCredentialsForOrganization } from "@/lib/ai/org-credentials";
 
@@ -16,7 +16,7 @@ import { StartConversationButton } from "@/components/ai/start-conversation-butt
 export const metadata: Metadata = { title: "Assistente IA — FinderFlow AI" };
 
 export default async function AssistantPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
 
   // Antes checava só a variável global OPENAI_API_KEY — ignorava a chave
   // que a própria organização configurou em Configurações (Fase 9),

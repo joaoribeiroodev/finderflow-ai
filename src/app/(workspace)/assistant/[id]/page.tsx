@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getConversationWithMessages } from "@/modules/ai/copilot.service";
 import { CopilotChat } from "@/components/ai/copilot-chat";
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Conversa — FinderFlow Copilot" };
 
 export default async function AssistantConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const result = await getConversationWithMessages(supabase, activeOrganization.organizationId, id);

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { getOrganizationIntegrationStatus } from "@/modules/organizations/credentials.service";
 import { listCompaniesForBilling, listContractCharges } from "@/modules/contracts/contracts.service";
 import { PageHeader } from "@/components/layout/page-header";
@@ -19,7 +19,7 @@ export const metadata: Metadata = { title: "Contratos — FinderFlow AI" };
  * plataforma.
  */
 export default async function ContractsPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [integrationStatus, companies, charges] = await Promise.all([

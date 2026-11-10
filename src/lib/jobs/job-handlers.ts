@@ -18,6 +18,7 @@ export type JobHandler = (job: JobRow) => Promise<void>;
 
 const STUCK_JOB_TIMEOUT_MS = 15 * 60 * 1000; // 15min — maior que qualquer timeout de função esperado.
 const RATE_LIMIT_COUNTER_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PROVIDER_CACHE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const PERIODIC_INTERVAL_MS = 30 * 60 * 1000; // 30min
 const CADENCE_PROCESSOR_INTERVAL_MS = 15 * 60 * 1000; // 15min — granularidade aceitável para offsets em dias.
 
@@ -64,6 +65,16 @@ async function cleanupRateLimitCounters(): Promise<void> {
 
   if (error) throw new Error(error.message);
   logger.debug("Contadores de rate limit expirados purgados", { count: count ?? 0 });
+
+  // Mesma faxina periódica para o cache de respostas de provedores: depois
+  // de 30 dias a entrada não serve nem como último recurso (ver
+  // cached-provider.ts). Melhor esforço — não falha o job se a tabela
+  // ainda não existir neste ambiente.
+  const cacheCutoff = new Date(Date.now() - PROVIDER_CACHE_RETENTION_MS).toISOString();
+  const { error: cacheError } = await admin.from("provider_response_cache").delete().lt("fetched_at", cacheCutoff);
+  if (cacheError) {
+    logger.debug("Faxina do cache de provedores ignorada", { error: cacheError.message });
+  }
 
   await rescheduleSelf("cleanup_rate_limit_counters", PERIODIC_INTERVAL_MS);
 }

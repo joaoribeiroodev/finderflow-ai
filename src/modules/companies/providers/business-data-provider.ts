@@ -2,7 +2,9 @@ import "server-only";
 
 import { getServerEnv } from "@/lib/env/env.server";
 
+import { CachedBusinessDataProvider, structuredSearchKeyParts } from "./cached-provider";
 import { MinhaReceitaProvider } from "./minha-receita-provider";
+import { SupabaseProviderCacheStore } from "./provider-cache-store";
 
 /**
  * Contrato `BusinessDataProvider` (Fase 3, item 3 do prompt mestre):
@@ -73,6 +75,14 @@ export interface BusinessSearchPage {
   items: BusinessSearchResultItem[];
   nextPageToken?: string;
   totalEstimate?: number;
+  /**
+   * Presente quando a página veio do cache (`cached-provider.ts`) em vez
+   * de uma chamada nova ao provedor. `stale` = o provedor falhou agora e
+   * esta é a última resposta conhecida — a tela deve avisar o usuário.
+   */
+  cache?: { state: "fresh" | "stale"; fetchedAt: string };
+  /** O provedor falhou no meio da paginação: há resultados, mas a lista pode estar incompleta. */
+  partial?: boolean;
 }
 
 export interface BusinessDataProvider {
@@ -96,6 +106,18 @@ export class ProviderNotConfiguredError extends Error {
       "Nenhum provedor de busca de empresas está configurado. O cadastro manual e a importação por CSV já estão disponíveis em /companies.",
     );
     this.name = "ProviderNotConfiguredError";
+  }
+}
+
+/**
+ * O provedor externo falhou (fora do ar, lento ou limitando requisições).
+ * A mensagem já é escrita para o usuário final — as actions podem
+ * repassá-la como está.
+ */
+export class BusinessProviderUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BusinessProviderUnavailableError";
   }
 }
 
@@ -131,7 +153,13 @@ export function getBusinessDataProvider(): BusinessDataProvider {
   const env = getServerEnv();
 
   if (env.BUSINESS_PROVIDER === "minha_receita") {
-    return new MinhaReceitaProvider(env.BUSINESS_PROVIDER_BASE_URL ?? "https://minhareceita.org");
+    // O Minha Receita só filtra por CNAE/UF/cidade — o texto livre da
+    // busca não muda a resposta, então não entra na chave do cache.
+    return new CachedBusinessDataProvider(
+      new MinhaReceitaProvider(env.BUSINESS_PROVIDER_BASE_URL ?? "https://minhareceita.org"),
+      new SupabaseProviderCacheStore(),
+      { searchKeyParts: structuredSearchKeyParts },
+    );
   }
 
   return new NotConfiguredProvider();

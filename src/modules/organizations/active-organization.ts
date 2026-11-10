@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -61,6 +62,23 @@ export async function requireActiveOrganization(): Promise<MembershipSummary> {
   const { activeOrganization } = await resolveActiveOrganization();
   if (!activeOrganization) {
     throw new Error("NO_ACTIVE_ORGANIZATION");
+  }
+  return activeOrganization;
+}
+
+/**
+ * Versão para páginas (Server Components): sem organização ativa,
+ * redireciona para /onboarding em vez de lançar.
+ *
+ * O layout do workspace já faz esse redirect, mas o Next renderiza layout
+ * e página em paralelo — a página chegava a lançar NO_ACTIVE_ORGANIZATION
+ * antes de o redirect do layout valer, o que aparecia como erro 500 nos
+ * logs de produção (/dashboard) para quem acabou de se cadastrar.
+ */
+export async function requireActiveOrganizationForPage(): Promise<MembershipSummary> {
+  const { activeOrganization } = await resolveActiveOrganization();
+  if (!activeOrganization) {
+    redirect("/onboarding");
   }
   return activeOrganization;
 }

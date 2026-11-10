@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Megaphone } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listCampaigns } from "@/modules/campaigns/campaigns.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -29,7 +29,7 @@ const statusLabel = {
 } as const;
 
 export default async function CampaignsPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const campaigns = await listCampaigns(supabase, activeOrganization.organizationId);

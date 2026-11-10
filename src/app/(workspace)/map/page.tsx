@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Map as MapIcon } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listMapCompanies, countPendingGeocodes } from "@/modules/map/map.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { MapLoader } from "@/components/map/map-loader";
 export const metadata: Metadata = { title: "Mapa — FinderFlow AI" };
 
 export default async function MapPage() {
-  const { organizationId } = await requireActiveOrganization();
+  const { organizationId } = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const [{ points, stages }, pendingCount] = await Promise.all([

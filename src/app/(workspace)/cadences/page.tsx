@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Repeat } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { requireActiveOrganization } from "@/modules/organizations/active-organization";
+import { requireActiveOrganizationForPage } from "@/modules/organizations/active-organization";
 import { listCadences } from "@/modules/cadences/cadences.service";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { NewCadenceForm } from "@/components/cadences/new-cadence-form";
 export const metadata: Metadata = { title: "Cadências — FinderFlow AI" };
 
 export default async function CadencesPage() {
-  const activeOrganization = await requireActiveOrganization();
+  const activeOrganization = await requireActiveOrganizationForPage();
   const supabase = await createClient();
 
   const cadences = await listCadences(supabase, activeOrganization.organizationId);
