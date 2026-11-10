@@ -1916,6 +1916,54 @@ Supabase Auth está desligada (liga-se no painel, em Authentication).
 
 O código foi escrito para funcionar com ou sem as duas migrations acima
 (sem elas: a busca não usa cache e o worker segue recusando chamadas,
-como já fazia). As migrations e a ativação do agendador em produção
-(`configure_jobs_worker`) dependem de autorização explícita do usuário
-— não foram aplicadas automaticamente.
+como já fazia). **Atualização 2026-11-10**: o usuário aplicou as duas
+migrations e rodou `configure_jobs_worker` manualmente pelo SQL Editor do
+Supabase (eu não consigo aplicar migrations neste ambiente — toda
+chamada a `apply_migration`/DDL é bloqueada pelo classificador de modo
+automático com motivo `[Production Deploy]`). Confirmado por consulta
+direta: `pg_cron`/`pg_net` instaladas, os 47 índices e as políticas
+mescladas existem, `check_rate_limit` só é executável por `service_role`,
+e o cron `finderflow-jobs-worker` já disparou de verdade (200,
+`{"processed":4,"succeeded":3,"failed":1}`) — a fila que estava parada
+desde a Fase 10 está rodando. Um job de teste manual antigo
+(`fase10_test_job`, `dead_letter`) foi apagado por pedido do usuário.
+
+## Excluir usuário (painel /admin) — 2026-11-10
+
+Faltava no painel `/admin` → Usuários: só havia ativar/desativar conta,
+redefinir senha e conceder/revogar super admin — nenhuma forma de
+excluir a conta de verdade.
+
+`profiles` e `organization_members` já referenciam `auth.users(id) on
+delete cascade`, então `admin.auth.admin.deleteUser` sozinho já limpa o
+perfil e os vínculos de organização. O que precisava de tratamento à
+parte era organização em que o usuário é o único membro: apagar a conta
+sem apagar a organização a deixaria sem proprietário para sempre.
+
+Decisão: nova função `admin_delete_user_cascade(p_user, p_dry_run)`
+(migration `20261110120000_admin_delete_user_cascade.sql`, restrita a
+`service_role`):
+
+- se o usuário for o único `owner` de uma organização que **tem outros
+  membros**, a exclusão é **bloqueada** — devolve quais organizações
+  precisam de troca de titularidade ou exclusão primeiro (pelo próprio
+  dono, em Configurações → Privacidade e segurança);
+- se for o único *membro* de uma organização (não só o owner), ela é
+  apagada junto — mesmo cascade de `delete_organization_cascade`, com a
+  limpeza extra dos segredos do Vault (Asaas/OpenAI/Gmail) que a FK não
+  alcança.
+
+Fluxo no painel: `previewDeleteUserAction` roda a função em modo
+`p_dry_run` (só lê, nada muda) para mostrar o que vai acontecer antes de
+pedir confirmação; `deleteUserAction` exige digitar o e-mail exato da
+conta ("type to confirm", mesmo padrão da exclusão de organização),
+limpa os PDFs de proposta no Storage das organizações que serão
+apagadas, roda a função de verdade e só então chama
+`admin.auth.admin.deleteUser` — nessa ordem, para nunca apagar a conta e
+deixar organizações/segredos órfãos se algo no meio falhar.
+
+**Estado em produção**: a migration não foi aplicada (mesmo bloqueio de
+`[Production Deploy]`) — precisa ser aplicada manualmente pelo usuário,
+como as anteriores. Sem ela, o botão "Excluir usuário" aparece mas a
+chamada a `admin_delete_user_cascade` falha (função inexistente) com
+mensagem de erro genérica, sem apagar nada.

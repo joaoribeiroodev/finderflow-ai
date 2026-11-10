@@ -2787,6 +2787,7 @@ export type Database = {
       }
     }
     Functions: {
+      admin_delete_user_cascade: { Args: { p_user: string; p_dry_run?: boolean }; Returns: Json }
       can_admin_org: { Args: { target_org: string }; Returns: boolean }
       can_edit_org: { Args: { target_org: string }; Returns: boolean }
       check_rate_limit: {

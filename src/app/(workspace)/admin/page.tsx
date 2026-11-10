@@ -135,6 +135,7 @@ function UserRow({ user, currentUserId }: { user: AdminUserRow; currentUserId: s
       )}
       <UserAdminActions
         userId={user.id}
+        email={user.email}
         isActive={user.isActive}
         isSuperAdmin={user.isSuperAdmin}
         isSelf={user.id === currentUserId}

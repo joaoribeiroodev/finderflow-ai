@@ -379,6 +379,166 @@ export async function setUserSuperAdminAction(
   }
 }
 
+const PROPOSALS_BUCKET = "proposals";
+
+export interface DeleteUserPreview {
+  /** `true` quando alguma organização que o usuário possui tem outros membros — a exclusão fica bloqueada. */
+  blocked: boolean;
+  blockedOrganizations: Array<{ id: string; name: string; slug: string }>;
+  /** Organizações onde este usuário é o único membro — serão apagadas junto. */
+  organizationsToDelete: Array<{ id: string; name: string; slug: string }>;
+}
+
+interface AdminDeleteUserCascadeResult {
+  blocked: boolean;
+  blockedOrganizations: Array<{ id: string; name: string; slug: string }>;
+  deletedOrganizations: Array<{ id: string; name: string; slug: string }>;
+}
+
+/**
+ * Pré-visualiza o efeito de excluir um usuário (painel /admin → Usuários),
+ * sem apagar nada: quais organizações serão apagadas junto (porque este
+ * usuário é o único membro) e quais bloqueiam a exclusão (porque têm
+ * outros membros e ficariam sem proprietário). Usado para o diálogo de
+ * confirmação mostrar isso antes de pedir o e-mail digitado.
+ */
+export async function previewDeleteUserAction(
+  userId: string,
+): Promise<{ success: boolean; message?: string; preview?: DeleteUserPreview }> {
+  try {
+    await requireSuperAdminActor();
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("admin_delete_user_cascade", {
+      p_user: userId,
+      p_dry_run: true,
+    });
+
+    if (error) {
+      logger.error("Falha ao pré-visualizar exclusão de usuário", { error: error.message, userId });
+      return { success: false, message: "Não foi possível verificar o que a exclusão afetaria." };
+    }
+
+    const result = data as unknown as AdminDeleteUserCascadeResult;
+    return {
+      success: true,
+      preview: {
+        blocked: result.blocked,
+        blockedOrganizations: result.blockedOrganizations,
+        organizationsToDelete: result.deletedOrganizations,
+      },
+    };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+/**
+ * Exclui permanentemente a conta de um usuário da plataforma (painel
+ * /admin → Usuários). Confirmação é digitar o e-mail exato da conta —
+ * mesmo padrão "type to confirm" usado na exclusão de organização
+ * (Configurações → Privacidade e segurança) — para uma ação irreversível
+ * desse tamanho.
+ *
+ * `profiles` e `organization_members` têm `on delete cascade` em
+ * `auth.users(id)`, então `admin.auth.admin.deleteUser` já limpa o perfil
+ * e os vínculos de organização sozinho. O que precisa de tratamento à
+ * parte são organizações em que este usuário é o único membro: a função
+ * `admin_delete_user_cascade` apaga essas organizações junto (e seus
+ * segredos no Vault), e bloqueia a exclusão inteira se alguma organização
+ * que ele possui tiver outros membros — para nunca deixar uma organização
+ * sem proprietário. Os PDFs de proposta no Storage (que a SQL não
+ * alcança) são limpos aqui antes, mesmo padrão de `deleteOrganizationAction`.
+ */
+export async function deleteUserAction(userId: string, confirmEmail: string): Promise<AdminActionResult> {
+  try {
+    const actorId = await requireSuperAdminActor();
+    if (userId === actorId) {
+      return { success: false, message: "Você não pode excluir a própria conta por aqui." };
+    }
+
+    const admin = createAdminClient();
+    const { data: userData, error: getUserError } = await admin.auth.admin.getUserById(userId);
+    if (getUserError || !userData?.user) {
+      return { success: false, message: "Usuário não encontrado." };
+    }
+
+    const actualEmail = userData.user.email ?? "";
+    if (!actualEmail || confirmEmail.trim().toLowerCase() !== actualEmail.toLowerCase()) {
+      return { success: false, message: "Digite exatamente o e-mail da conta para confirmar." };
+    }
+
+    const { data: previewData, error: previewError } = await admin.rpc("admin_delete_user_cascade", {
+      p_user: userId,
+      p_dry_run: true,
+    });
+    if (previewError) {
+      logger.error("Falha ao verificar organizações antes de excluir usuário", {
+        error: previewError.message,
+        userId,
+      });
+      return { success: false, message: "Não foi possível verificar as organizações deste usuário." };
+    }
+
+    const preview = previewData as unknown as AdminDeleteUserCascadeResult;
+    if (preview.blocked) {
+      const names = preview.blockedOrganizations.map((o) => o.name).join(", ");
+      return {
+        success: false,
+        message: `Esta conta é a única proprietária de organizações com outros membros (${names}). Transfira a titularidade ou exclua essas organizações antes de excluir a conta.`,
+      };
+    }
+
+    for (const org of preview.deletedOrganizations) {
+      try {
+        const { data: files } = await admin.storage.from(PROPOSALS_BUCKET).list(org.id);
+        if (files && files.length > 0) {
+          await admin.storage.from(PROPOSALS_BUCKET).remove(files.map((f) => `${org.id}/${f.name}`));
+        }
+      } catch (error) {
+        logger.error("Falha ao limpar storage antes de excluir organização (via exclusão de usuário)", {
+          error: error instanceof Error ? error.message : "erro desconhecido",
+          organizationId: org.id,
+        });
+      }
+    }
+
+    const { error: cascadeError } = await admin.rpc("admin_delete_user_cascade", {
+      p_user: userId,
+      p_dry_run: false,
+    });
+    if (cascadeError) {
+      logger.error("Falha ao excluir organizações de um usuário antes de excluir a conta", {
+        error: cascadeError.message,
+        userId,
+      });
+      return { success: false, message: "Não foi possível excluir as organizações deste usuário." };
+    }
+
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(userId);
+    if (deleteUserError) {
+      logger.error("Falha ao excluir usuário", { error: deleteUserError.message, userId });
+      return { success: false, message: "Não foi possível excluir o usuário." };
+    }
+
+    await logAudit({
+      organizationId: null,
+      actorId,
+      action: "user.delete",
+      resourceType: "auth.users",
+      resourceId: userId,
+      metadata: {
+        email: actualEmail,
+        deletedOrganizations: preview.deletedOrganizations.map((o) => o.slug),
+      },
+    });
+
+    revalidatePath("/admin");
+    return { success: true, message: "Usuário excluído." };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
 export interface SystemLogRow {
   id: string;
   level: "warn" | "error";
